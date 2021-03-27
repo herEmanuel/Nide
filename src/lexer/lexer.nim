@@ -19,7 +19,7 @@ proc nextChar(l: var Lexer) =
     l.position = l.nextPosition
     l.nextPosition += 1
 
-proc peekChar(l: Lexer): char = 
+proc peekChar(l: var Lexer): char = 
     if l.position >= len(l.input):
         return '\0'
 

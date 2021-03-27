@@ -39,6 +39,7 @@ const
     OR* = "||"
 
     FUNCTION* = "FUNCTION"
+    TYPEOF* = "TYPEOF"
     LET* = "LET"
     CONST* = "CONST"
     TRUE* = "TRUE"

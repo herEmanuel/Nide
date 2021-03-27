@@ -1,16 +1,24 @@
-import lexer/lexer
-import lexer/tokens
+import src/lexer/lexer
+# import src/lexer/tokens
+import src/parser/parser
 import strformat
+import json
 
 echo ">> "
 var input = readLine(stdin)
 
 var l = newLexer(input)
 
-var tok = l.nextToken()
+var p = newParser(l)
 
-while tok.tokenType != EOF:
-    echo "{tok}\n".fmt
-    tok = l.nextToken()
+var program = p.parseProgram()
 
-echo "Input end"
+echo %program
+
+# var tok = l.nextToken()
+
+# while tok.tokenType != EOF:
+#     echo "{tok}\n".fmt
+#     tok = l.nextToken()
+
+# echo "Input end"

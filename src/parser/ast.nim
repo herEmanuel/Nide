@@ -1,23 +1,45 @@
 type 
     NodeType* = enum
-        Integer,
-        String,
-        Bool,
-        Identifier,
-        InfixExpression
-        PrefixExpression
+        astProgram,
+        astInt,
+        astString,
+        astBool,
+        astOperator,
+        astArray,
+        astArrayAccess,
+        astIdent,
+        astInfix,
+        astPrefix,
+        astLet,
+        astReassignment,
+        astConst,
+        astFunction,
+        astReturn,
+        astFuncCall,
+        astIf,
+        astWhile,
+        astFor,
+        astTypeOf,
+        astImport
 
     Node* = ref object 
         case nodeType*: NodeType
-        of Integer, String, Identifier: value*: string
-        of Bool: bValue*: bool
-        of InfixExpression:
-            inLeft*: Node
-            inOperator*: string
-            inRight*: Node
-        of PrefixExpression:
-            pLeft*: Node
-            pOperator*: string
+        of astInt:
+            intValue*: string
+        of astString:
+            strValue*: string
+        of astBool:
+            boolValue*: bool
+        of astIdent:
+            identifier*: string
+        of astOperator:
+            operator*: string
+        of astArray, astProgram:
+            elements*: seq[Node]
+        else:
+            sons*: seq[Node]
         
+proc add*(n: var Node, son: Node) = 
+    n.sons.add(son)
 
 
