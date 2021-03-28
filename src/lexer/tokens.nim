@@ -1,3 +1,5 @@
+import tables
+
 type 
     Token* = object 
         tokenType*: string
@@ -41,6 +43,7 @@ const
     FUNCTION* = "FUNCTION"
     TYPEOF* = "TYPEOF"
     LET* = "LET"
+    VAR* = "VAR"
     CONST* = "CONST"
     TRUE* = "TRUE"
     FALSE* = "FALSE"
@@ -51,3 +54,23 @@ const
     FOR* = "FOR"
 
 
+var keywords = {
+    "function": FUNCTION,
+    "let": LET,
+    "const": CONST,
+    "var": VAR,
+    "true": TRUE,
+    "false": FALSE,
+    "if": IF,
+    "else": ELSE,
+    "return": RETURN,
+    "while": WHILE,
+    "for": FOR,
+    "typeof": TYPEOF
+}.toTable
+
+proc isKeywordOrIdentifier*(value: string): string = 
+    if keywords.hasKey(value):
+        return keywords[value]
+
+    return IDENTIFIER

@@ -1,6 +1,7 @@
 type 
     NodeType* = enum
         astProgram,
+        astBlock,
         astInt,
         astString,
         astBool,
@@ -30,11 +31,13 @@ type
             strValue*: string
         of astBool:
             boolValue*: bool
+        of astTypeOf, astReturn:
+            value*: Node
         of astIdent:
             identifier*: string
         of astOperator:
             operator*: string
-        of astArray, astProgram:
+        of astArray, astProgram, astBlock:
             elements*: seq[Node]
         else:
             sons*: seq[Node]

@@ -2,13 +2,13 @@ import ../lexer/lexer, ../lexer/tokens
 import ast
 import strformat
 import tables
+import terminal
 
 type 
     Parser = object 
         l: Lexer
         currentToken: Token
         peekToken: Token
-        errors*: seq[string]
 
 type 
     precedences = enum
@@ -16,7 +16,9 @@ type
         OR_AND, # && and ||
         GL, # <, >, <= and >=
         SUM, # + and -
-        DIVISION # / and *
+        DIVISION, # / and *
+
+        PREFIX #-, !
 
 
 var tokenPrecedence = {
@@ -37,11 +39,12 @@ proc advance(p: var Parser) =
     p.peekToken = p.l.nextToken()
 
 proc addError(p: var Parser, err: string) = 
-    p.errors.add("Parsing error: " & err)
+    styledEcho fgRed, "Parsing error: ", fgWhite, "" & err
+    system.quit(0)
 
 proc expectToken(p: var Parser, tok: string): bool = 
     if p.peekToken.tokenType != tok:
-        p.addError("expected token of type {tok}, got {p.currentToken} instead".fmt)
+        p.addError("expected token of type {tok}, got {p.peekToken.tokenType} instead".fmt)
         return false 
 
     p.advance()
@@ -59,29 +62,48 @@ proc peekPrecedence(p: var Parser): int =
 proc newParser*(l: var Lexer): Parser = 
     var p = Parser(l: l)
 
-    p.currentToken = l.nextToken()
-    p.peekToken = l.nextToken()
-
     return p
 
-proc parseLet(p: var Parser): Node
 proc parseExpression(p: var Parser, precedence: int): Node
+proc parseLet(p: var Parser): Node
+proc parseConst(p: var Parser): Node
+proc parseReturn(p: var Parser): Node
+proc parseNodes(p: var Parser): Node
+proc parseIf(p: var Parser): Node
 
 proc parseProgram*(p: var Parser): Node = 
+
+    p.currentToken = p.l.nextToken()
+    p.peekToken = p.l.nextToken()
+
     var program = Node(nodeType: astProgram)
 
-    while p.peekToken.tokenType != EOF:
-        
-        case p.currentToken.tokenType
-        of LET:
-            program.elements.add(p.parseLet())
-        else:
-            program.elements.add(p.parseExpression(ord(LOWEST)))
+    while p.currentToken.tokenType != EOF:
+        program.elements.add(p.parseNodes())
 
     return program
 
-proc parseLet(p: var Parser): Node = 
-    var node = Node(nodeType: astLet)
+proc parseNodes(p: var Parser): Node = 
+    var node: Node
+
+    case p.currentToken.tokenType
+        of LET, VAR:
+            node = p.parseLet()
+        of CONST:
+            node = p.parseConst()
+        of RETURN:
+            node = p.parseReturn()
+        of IF:
+            node = p.parseIf()
+        else:
+            node = p.parseExpression(ord(LOWEST))
+
+    p.advance()
+
+    return node
+
+proc parseVariableBody(p: var Parser, nodeType: NodeType): Node = 
+    var node = Node(nodeType: nodeType)
 
     if not p.expectToken(IDENTIFIER):
         return Node()
@@ -101,6 +123,112 @@ proc parseLet(p: var Parser): Node =
     if p.peekToken.tokenType == SEMICOLON:
         p.advance()
     
+    return node
+
+proc parseLet(p: var Parser): Node = 
+    return p.parseVariableBody(astLet)
+
+proc parseConst(p: var Parser): Node =
+    return p.parseVariableBody(astConst)
+
+proc parseReturn(p: var Parser): Node = 
+    var node = Node(nodeType: astReturn)
+
+    p.advance()
+
+    node.value = p.parseExpression(ord(LOWEST))
+
+    return node
+
+proc parseBlock(p: var Parser): Node = 
+    var node = Node(nodeType: astBlock)
+
+    p.advance()
+
+    while p.currentToken.tokenType != RBRACE:
+        if p.currentToken.tokenType == EOF:
+            p.addError("expected }, got EOF instead")
+            return Node()
+
+        node.elements.add(p.parseNodes())
+
+    return node
+
+proc parseIf(p: var Parser): Node = 
+    var node = Node(nodeType: astIf)
+
+    if not p.expectToken(LPAREN):
+        return Node()
+
+    p.advance()
+
+    node.add(p.parseExpression(ord(LOWEST)))
+
+    if not p.expectToken(RPAREN):
+        return Node()
+
+    if not p.expectToken(LBRACE):
+        return Node()
+
+    node.add(p.parseBlock())
+
+    if p.peekToken.tokenType == ELSE:
+        p.advance()
+
+        if not p.expectToken(LBRACE):
+            return Node()
+
+        node.add(p.parseBlock())
+
+    return node
+
+proc parseFunction(p: var Parser): Node = 
+    var node = Node(nodeType: astFunction)
+
+    if not p.expectToken(IDENTIFIER):
+        return Node()
+    
+    node.add(Node(nodeType: astIdent, identifier: p.currentToken.value))
+
+    if not p.expectToken(LPAREN):
+        return Node()
+
+    if p.peekToken.tokenType == RPAREN:
+        p.advance() 
+
+        if not p.expectToken(LBRACE):
+            return Node()
+
+        node.add(p.parseBlock())
+
+        return node
+
+    if p.peekToken.tokenType != IDENTIFIER:
+        p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
+    
+    p.advance()
+    node.add(Node(nodeType: astIdent, identifier: p.currentToken.value))
+    p.advance()
+
+    while p.currentToken.tokenType == COMMA:
+        p.advance()
+       
+        if p.currentToken.tokenType != IDENTIFIER:
+            p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
+
+        node.add(Node(nodeType: astIdent, identifier: p.currentToken.value))
+
+        if p.peekToken.tokenType == COMMA:
+            p.advance()
+
+    if not p.expectToken(RPAREN):
+        return Node()
+
+    if not p.expectToken(LBRACE):
+        return Node()
+
+    node.add(p.parseBlock())
+
     return node
 
 proc parseIdentifier(p: var Parser): Node = 
@@ -123,6 +251,13 @@ proc parseBool(p: var Parser): Node =
 
     return node
 
+proc parseTypeOf(p: var Parser): Node = 
+    var node = Node(nodeType: astTypeOf)
+
+    node.value = p.parseExpression(ord(LOWEST))
+
+    return node
+
 proc parseInfix(p: var Parser, left: Node): Node = 
     var node = Node(nodeType: astInfix)
 
@@ -131,13 +266,22 @@ proc parseInfix(p: var Parser, left: Node): Node =
     node.add(Node(nodeType: astOperator, operator: p.peekToken.value))
 
     var precedence = p.peekPrecedence()
-    echo "infix current token: " & $p.currentToken
+
     p.advance()
-    echo "infix current token: " & $p.currentToken
     p.advance()
-    echo "infix current token: " & $p.currentToken
-    echo "infix next token: " & $p.peekToken
+ 
     node.add(p.parseExpression(precedence))
+
+    return node
+
+proc parsePrefix(p: var Parser): Node = 
+    var node = Node(nodeType: astPrefix)
+
+    node.add(Node(nodeType: astOperator, operator: p.currentToken.value))
+
+    p.advance()
+
+    node.add(p.parseExpression(ord(PREFIX)))
 
     return node
 
@@ -154,7 +298,7 @@ proc parseGroupedExpression(p: var Parser): Node =
 proc parseExpression(p: var Parser, precedence: int): Node = 
 
     var left: Node
-    echo p.currentToken.tokenType
+
     case p.currentToken.tokenType
     of IDENTIFIER:
         left = p.parseIdentifier()
@@ -164,14 +308,14 @@ proc parseExpression(p: var Parser, precedence: int): Node =
         left = p.parseInteger()
     of STRING:
         left = p.parseString()
-    # of IF:
-    #     left = p.parseIf()
-    # of FUNCTION:
-    #     left = p.parseFunction()
+    of FUNCTION:
+        left = p.parseFunction()
     of TRUE, FALSE:
         left = p.parseBool()
-    # of TYPEOF:
-    #     left = p.parseTypeOf()
+    of TYPEOF:
+        left = p.parseTypeOf()
+    of NOT, MINUS:
+        left = p.parsePrefix()
     else:
         p.addError("{p.currentToken.tokenType} can not be used as an expression".fmt)
         return Node()

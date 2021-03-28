@@ -121,8 +121,9 @@ proc nextToken*(l: var Lexer): Token =
     else:
         if isAlphaAscii(l.currentChar):
             var value = l.readIdentifier()
+            var tokType = isKeywordOrIdentifier(value)
 
-            tok = Token(tokenType: IDENTIFIER, value: value)
+            tok = Token(tokenType: tokType, value: value)
             return tok
         elif isDigit(l.currentChar):
             var number = l.readNumber()
@@ -132,7 +133,7 @@ proc nextToken*(l: var Lexer): Token =
 
     l.nextChar()
     return tok
-    
+
 proc readIdentifier(l: var Lexer): string =
     var value = ""
 
