@@ -1,6 +1,7 @@
 import src/lexer/lexer
 # import src/lexer/tokens
 import src/parser/parser
+import src/evaluator/evaluator
 import strformat
 import json
 
@@ -13,7 +14,9 @@ var p = newParser(l)
 
 var program = p.parseProgram()
 
-echo %program
+echo %eval(program)
+
+# echo %program
 
 # var tok = l.nextToken()
 

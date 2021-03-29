@@ -3,6 +3,7 @@ type
         astProgram,
         astBlock,
         astInt,
+        astFloat,
         astString,
         astBool,
         astOperator,
@@ -11,6 +12,7 @@ type
         astIdent,
         astInfix,
         astPrefix,
+        astPostfix,
         astLet,
         astReassignment,
         astConst,
@@ -27,6 +29,8 @@ type
         case nodeType*: NodeType
         of astInt:
             intValue*: string
+        of astFloat:
+            floatValue*: string
         of astString:
             strValue*: string
         of astBool:

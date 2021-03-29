@@ -17,9 +17,8 @@ type
         GL, # <, >, <= and >=
         SUM, # + and -
         DIVISION, # / and *
-
-        PREFIX #-, !
-
+        PREFIX, #-, !
+        CALL # teste()
 
 var tokenPrecedence = {
     PLUS: ord(SUM),
@@ -31,7 +30,8 @@ var tokenPrecedence = {
     GREATER_THAN_OR_EQUAL: ord(GL),
     LESS_THAN_OR_EQUAL: ord(GL),
     OR: ord(OR_AND),
-    AND: ord(OR_AND)
+    AND: ord(OR_AND),
+    LPAREN: ord(CALL)
 }.toTable
 
 proc advance(p: var Parser) = 
@@ -70,6 +70,8 @@ proc parseConst(p: var Parser): Node
 proc parseReturn(p: var Parser): Node
 proc parseNodes(p: var Parser): Node
 proc parseIf(p: var Parser): Node
+proc parseWhile(p: var Parser): Node
+proc parseFor(p: var Parser): Node
 
 proc parseProgram*(p: var Parser): Node = 
 
@@ -80,6 +82,7 @@ proc parseProgram*(p: var Parser): Node =
 
     while p.currentToken.tokenType != EOF:
         program.elements.add(p.parseNodes())
+        p.advance()
 
     return program
 
@@ -95,10 +98,12 @@ proc parseNodes(p: var Parser): Node =
             node = p.parseReturn()
         of IF:
             node = p.parseIf()
+        of WHILE:
+            node = p.parseWhile()
+        of FOR: 
+            node = p.parseFor()
         else:
             node = p.parseExpression(ord(LOWEST))
-
-    p.advance()
 
     return node
 
@@ -151,6 +156,7 @@ proc parseBlock(p: var Parser): Node =
             return Node()
 
         node.elements.add(p.parseNodes())
+        p.advance()
 
     return node
 
@@ -179,6 +185,60 @@ proc parseIf(p: var Parser): Node =
             return Node()
 
         node.add(p.parseBlock())
+
+    return node
+
+proc parseWhile(p: var Parser): Node = 
+    var node = Node(nodeType: astWhile)
+
+    if not p.expectToken(LPAREN):
+        return Node()
+
+    p.advance()
+
+    node.add(p.parseExpression(ord(LOWEST)))
+
+    if not p.expectToken(RPAREN):
+        return Node()
+
+    if not p.expectToken(LBRACE):
+        return Node()
+
+    node.add(p.parseBlock())
+
+    return node
+
+proc parseFor(p: var Parser): Node = 
+    var node = Node(nodeType: astFor)
+
+    if not p.expectToken(LPAREN):
+        return Node()
+
+    p.advance()
+
+    node.add(p.parseNodes())
+    #TODO: come back later to see if the code works
+    if p.currentToken.tokenType != SEMICOLON:
+        p.addError("expected a ;, got {p.currentToken.tokenType} instead".fmt)
+
+    p.advance()
+
+    node.add(p.parseExpression(ord(LOWEST)))
+
+    if not p.expectToken(SEMICOLON):
+        return Node()
+
+    p.advance()
+
+    node.add(p.parseExpression(ord(LOWEST)))
+
+    if not p.expectToken(RPAREN):
+        return Node()
+
+    if not p.expectToken(LBRACE):
+        return Node()
+
+    node.add(p.parseBlock())
 
     return node
 
@@ -231,6 +291,31 @@ proc parseFunction(p: var Parser): Node =
 
     return node
 
+proc parseFunctionCall(p: var Parser, left: Node): Node = 
+    var node = Node(nodeType: astFuncCall)
+
+    node.add(left)
+
+    p.advance()
+
+    if p.peekToken.tokenType == RPAREN:
+        p.advance()
+        return node
+
+    p.advance()
+
+    node.add(p.parseExpression(ord(LOWEST)))
+    p.advance()
+
+    while p.currentToken.tokenType == COMMA:
+        p.advance()
+
+        node.add(p.parseExpression(ord(LOWEST)))
+
+        p.advance()
+
+    return node
+
 proc parseIdentifier(p: var Parser): Node = 
     var node = Node(nodeType: astIdent, identifier: p.currentToken.value)
 
@@ -238,6 +323,11 @@ proc parseIdentifier(p: var Parser): Node =
 
 proc parseInteger(p: var Parser): Node = 
     var node = Node(nodeType: astInt, intValue: p.currentToken.value)
+
+    return node
+
+proc parseFloat(p: var Parser): Node = 
+    var node = Node(nodeType: astFloat, floatValue: p.currentToken.value)
 
     return node
 
@@ -295,33 +385,59 @@ proc parseGroupedExpression(p: var Parser): Node =
 
     return expression
 
-proc parseExpression(p: var Parser, precedence: int): Node = 
+proc parsePostfixIfExists(p: var Parser, token: string, left: Node): Node = 
+    case token
+    of INC, DEC:
+        var node = Node(nodeType: astPostfix)
 
-    var left: Node
+        node.add(left)
 
+        node.add(Node(nodeType: astOperator, operator: token))
+
+        p.advance()
+        
+        return node
+    else: 
+        return left
+
+proc parsePrefixNode(p: var Parser): Node = 
     case p.currentToken.tokenType
     of IDENTIFIER:
-        left = p.parseIdentifier()
+        return p.parseIdentifier()
     of LPAREN:
-        left = p.parseGroupedExpression()
+        return p.parseGroupedExpression()
     of INT:
-        left = p.parseInteger()
+        return p.parseInteger()
+    of FLOAT:
+        return p.parseFloat()
     of STRING:
-        left = p.parseString()
+        return p.parseString()
     of FUNCTION:
-        left = p.parseFunction()
+        return p.parseFunction()
     of TRUE, FALSE:
-        left = p.parseBool()
+        return p.parseBool()
     of TYPEOF:
-        left = p.parseTypeOf()
+        return p.parseTypeOf()
     of NOT, MINUS:
-        left = p.parsePrefix()
+        return p.parsePrefix()
     else:
         p.addError("{p.currentToken.tokenType} can not be used as an expression".fmt)
         return Node()
 
+proc parseExpression(p: var Parser, precedence: int): Node = 
+
+    var left: Node
+  
+    left = p.parsePrefixNode()
+
+    left = p.parsePostfixIfExists(p.peekToken.tokenType, left)
+
     while p.peekToken.tokenType != SEMICOLON and p.peekPrecedence() > precedence:
         #TODO: check for other functions available to infix expressions
-        left = p.parseInfix(left)
-    
+        case p.peekToken.tokenType
+        of LPAREN:
+            left = p.parseFunctionCall(left)
+        else:
+            left = p.parseInfix(left)
+
     return left

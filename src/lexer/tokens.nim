@@ -39,6 +39,8 @@ const
     LESS_THAN_OR_EQUAL* = "<="
     AND* = "&&"
     OR* = "||"
+    INC* = "++"
+    DEC* = "--"
 
     FUNCTION* = "FUNCTION"
     TYPEOF* = "TYPEOF"

@@ -68,8 +68,16 @@ proc nextToken*(l: var Lexer): Token =
         tok = Token(tokenType: RSQBRACK, value: $l.currentChar)
     of '+':
         tok = Token(tokenType: PLUS, value: $l.currentChar)
+
+        if l.peekChar() == '+':
+            tok = Token(tokenType: INC, value: "++")
+            l.nextChar()
     of '-':
         tok = Token(tokenType: MINUS, value: $l.currentChar)
+
+        if l.peekChar() == '-':
+            tok = Token(tokenType: DEC, value: "--")
+            l.nextChar()
     of '*':
         tok = Token(tokenType: ASTERISK, value: $l.currentChar)
     of '/':
@@ -127,8 +135,12 @@ proc nextToken*(l: var Lexer): Token =
             return tok
         elif isDigit(l.currentChar):
             var number = l.readNumber()
+            var tokType = INT
 
-            tok = Token(tokenType: INT, value: number)
+            if '.' in number:
+                tokType = FLOAT
+
+            tok = Token(tokenType: tokType, value: number)
             return tok
 
     l.nextChar()
@@ -156,9 +168,16 @@ proc readString(l: var Lexer): string =
 
 proc readNumber(l: var Lexer): string = 
     var number = ""
+    var hasDot = false
     
     while isDigit(l.currentChar):
         number.add(l.currentChar)
         l.nextChar()
+
+        if l.currentChar == '.' and not hasDot:
+            number.add(l.currentChar)
+            hasDot = true
+            l.nextChar()
+
     
     return number
