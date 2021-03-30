@@ -2,19 +2,23 @@ import src/lexer/lexer
 # import src/lexer/tokens
 import src/parser/parser
 import src/evaluator/evaluator
+import src/evaluator/symbolTable
 import strformat
 import json
 
-echo ">> "
-var input = readLine(stdin)
+var st = newSt()
 
-var l = newLexer(input)
+while true:
+    echo ">> "
+    var input = readLine(stdin)
 
-var p = newParser(l)
+    var l = newLexer(input)
 
-var program = p.parseProgram()
+    var p = newParser(l)
 
-echo %eval(program)
+    var program = p.parseProgram()
+
+    echo %eval(program, st)
 
 # echo %program
 

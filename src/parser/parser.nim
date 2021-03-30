@@ -14,6 +14,7 @@ type
     precedences = enum
         LOWEST, #lowest precedence
         OR_AND, # && and ||
+        NEQUAL, # ==, !=
         GL, # <, >, <= and >=
         SUM, # + and -
         DIVISION, # / and *
@@ -31,7 +32,9 @@ var tokenPrecedence = {
     LESS_THAN_OR_EQUAL: ord(GL),
     OR: ord(OR_AND),
     AND: ord(OR_AND),
-    LPAREN: ord(CALL)
+    LPAREN: ord(CALL),
+    EQUAL: ord(NEQUAL),
+    NOT_EQUAL: ord(NEQUAL)
 }.toTable
 
 proc advance(p: var Parser) = 

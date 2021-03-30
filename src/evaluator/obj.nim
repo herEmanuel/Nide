@@ -2,7 +2,13 @@ type
     ObjType* = enum
         objInt,
         objString,
-        objFloat
+        objFloat,
+        objBool,
+        objNull,
+        objError,
+        objInfix,
+        objPrefix,
+        objFunction
 
 type 
     Obj* = ref object 
@@ -13,4 +19,9 @@ type
             strValue*: string
         of objFloat:
             floatValue*: float
-        
+        of objBool:
+            boolValue*: bool
+        of objError:
+            error*: string
+        else:
+            discard
