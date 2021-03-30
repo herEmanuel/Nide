@@ -26,6 +26,11 @@ proc eval*(node: Node, st: var SymbolTable): Obj =
         return Obj(objType: objFloat, floatValue: parseFloat(node.floatValue))
     of astString:
         return Obj(objType: objString, strValue: node.strValue)
+    of astBool:
+        if node.boolValue:
+            return TRUE
+        
+        return FALSE
     of astPrefix:
         var right = eval(node.sons[1], st)
 
