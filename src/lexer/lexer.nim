@@ -7,13 +7,23 @@ type
         nextPosition: int
         currentChar: char
         input: string
+        file: File
 
 proc nextChar(l: var Lexer) = 
 
     if l.position >= len(l.input):
-        l.currentChar = '\0'
-        return 
 
+        try:
+            var newLine = l.file.readLine()
+            if newLine == "":
+                l.nextChar()
+                return
+
+            l.input.add(" " & newLine)
+        except:
+            l.currentChar = '\0'
+            return  
+        
     l.currentChar = l.input[l.position]
 
     l.position = l.nextPosition
@@ -25,8 +35,8 @@ proc peekChar(l: var Lexer): char =
 
     return l.input[l.position]
 
-proc newLexer*(input: string): Lexer =
-    var l = Lexer(input: input)
+proc newLexer*(input: string, file: File): Lexer =
+    var l = Lexer(input: input, file: file)
 
     l.nextChar()
     l.nextChar()

@@ -1,8 +1,6 @@
-import ../parser/ast
-import obj
-import symbolTable
-import strutils
-import strformat
+import ../parser/ast, obj, symbolTable
+from strformat import fmt
+import strutils, json
 
 let 
     TRUE = Obj(objType: objBool, boolValue: true)
@@ -12,11 +10,17 @@ let
 proc raiseError(err: string): Obj = 
     return Obj(objType: objError, error: "Evaluation error: {err}".fmt)
 
-proc evalProgram(nodes: seq[Node], st: var SymbolTable): Obj
+proc isError(obj: Obj) = 
+    if obj.objType == objError:
+        echo obj.error
+        system.quit(0)
+
+proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalIntInfix(left: Obj, right: Obj, operation: string): Obj
 proc evalFloatInfix(left: Obj, right: Obj, operation: string): Obj
+proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): Obj
 
-proc eval*(node: Node, st: var SymbolTable): Obj =
+proc eval*(node: Node, st: ref SymbolTable): Obj =
     case node.nodeType 
     of astProgram:
         return evalProgram(node.elements, st)
@@ -31,8 +35,14 @@ proc eval*(node: Node, st: var SymbolTable): Obj =
             return TRUE
         
         return FALSE
+    of astReturn:
+        var value = eval(node.value, st)
+        isError(value)
+
+        return Obj(objType: objReturn, returnValue: value)
     of astPrefix:
         var right = eval(node.sons[1], st)
+        isError(right)
 
         case node.sons[0].operator:
         of "-":
@@ -54,7 +64,9 @@ proc eval*(node: Node, st: var SymbolTable): Obj =
 
     of astInfix:
         var left = eval(node.sons[0], st)
+        isError(left)
         var right = eval(node.sons[2], st)
+        isError(right)
 
         if left.objType == objInt and right.objType == objInt:
             return evalIntInfix(left, right, node.sons[1].operator)
@@ -108,29 +120,76 @@ proc eval*(node: Node, st: var SymbolTable): Obj =
         if res == nil:
             return raiseError("undeclared identifier: {node.identifier}".fmt)
 
+        if res.objType == objConst:
+            res = res.constValue
+
         return res
 
     of astLet:
         var value = eval(node.sons[1], st)
+        isError(value)
 
         if st.setSymbol(node.sons[0].identifier, value) != nil: 
             return NULL
 
         return raiseError("{node.sons[0].identifier} can not be redeclared".fmt)
 
+    of astConst:
+        var value = eval(node.sons[1], st)
+        isError(value)
+
+        if st.setSymbol(node.sons[0].identifier, Obj(objType: objConst, constValue: value)) != nil:
+            return NULL
+        
+        return raiseError("{node.sons[0].identifier} can not be redeclared".fmt)
+
+    of astFunction:
+        var funcObj = Obj(objType: objFunction)
+
+        funcObj.funcName = node.sons[0]
+
+        var x = 1
+        while node.sons[x].nodeType != astBlock:
+            funcObj.funcParams.add(node.sons[x].identifier)
+            x += 1
+        
+        funcObj.funcBody = node.sons[x]
+
+        if st.setSymbol(funcObj.funcName.identifier, funcObj) == nil:
+            return raiseError("{node.sons[0].identifier} can not be redeclared".fmt)
+
+        return funcObj
+
+    of astFuncCall:
+        var function = eval(node.sons[0], st)
+        isError(function)
+        echo %function
+        if function.objType != objFunction:
+            return raiseError("{node.sons[0].identifier} is not callable".fmt)
+
+        var args: seq[Obj]
+
+        for arg in node.sons:
+            if node.sons[0] == arg:
+                continue
+
+            args.add(eval(arg, st))
+
+        return evalFunctionBody(function, args, st)
+
     else:
         discard
 
 
-proc evalProgram(nodes: seq[Node], st: var SymbolTable): Obj =
+proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj =
     var result: Obj
 
     for node in nodes:
         result = eval(node, st)
+        isError(result)
 
-        if result.objType == objError:
-            echo result.error
-            system.quit(0)
+        if result.objType == objReturn:
+            return result
 
     return result
 
@@ -239,3 +298,15 @@ proc evalFloatInfix(left: Obj, right: Obj, operation: string): Obj =
             return FALSE
     else: 
         discard
+
+proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): Obj = 
+    var st = newStWithOuter(outerSt)
+
+    for i, arg in function.funcParams:
+        discard st.setSymbol(arg, args[i])
+
+    var bodyResult = evalProgram(function.funcBody.elements, st)
+    if bodyResult.objType == objReturn:
+        return bodyResult.returnValue
+
+    return bodyResult

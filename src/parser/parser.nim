@@ -146,6 +146,9 @@ proc parseReturn(p: var Parser): Node =
 
     node.value = p.parseExpression(ord(LOWEST))
 
+    if p.peekToken.tokenType == SEMICOLON:
+        p.advance()
+
     return node
 
 proc parseBlock(p: var Parser): Node = 
@@ -281,10 +284,10 @@ proc parseFunction(p: var Parser): Node =
 
         node.add(Node(nodeType: astIdent, identifier: p.currentToken.value))
 
-        if p.peekToken.tokenType == COMMA:
-            p.advance()
+        p.advance()
 
-    if not p.expectToken(RPAREN):
+    if p.currentToken.tokenType != RPAREN:
+        p.addError("expected token of type ), got {p.currentToken.tokenType} instead".fmt)
         return Node()
 
     if not p.expectToken(LBRACE):
@@ -315,6 +318,9 @@ proc parseFunctionCall(p: var Parser, left: Node): Node =
 
         node.add(p.parseExpression(ord(LOWEST)))
 
+        p.advance()
+
+    if p.peekToken.tokenType == SEMICOLON:
         p.advance()
 
     return node

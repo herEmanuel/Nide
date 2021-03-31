@@ -1,24 +1,47 @@
 import src/lexer/lexer
 # import src/lexer/tokens
 import src/parser/parser
-import src/evaluator/evaluator
-import src/evaluator/symbolTable
-import strformat
-import json
+import src/evaluator/evaluator, src/evaluator/symbolTable
+import strformat, json, os
 
-var st = newSt()
+proc repl() = 
+    var st = newSt()
 
-while true:
-    echo ">> "
-    var input = readLine(stdin)
+    echo "Type \"quit\" to leave the repl"
 
-    var l = newLexer(input)
+    while true:
+        write(stdout, ">> ")
+        var input = readLine(stdin)
 
+        if input == "quit":
+            system.quit(0)
+
+        var l = newLexer(input, nil)
+        var p = newParser(l)
+        var program = p.parseProgram()
+
+        echo %eval(program, st)
+
+proc execFromFile(filePath: string) =
+    let f = open(os.getCurrentDir() & "./{filePath}".fmt)
+    var input = f.readLine()
+
+    var st = newSt()
+
+    var l = newLexer(input, f)
     var p = newParser(l)
 
     var program = p.parseProgram()
-
     echo %eval(program, st)
+
+    f.close()
+
+var args = os.commandLineParams()
+
+if len(args) == 0:
+    repl()
+else:
+    execFromFile(args[0])
 
 # echo %program
 

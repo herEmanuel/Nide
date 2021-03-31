@@ -1,3 +1,5 @@
+import ../parser/ast
+
 type
     ObjType* = enum
         objInt,
@@ -6,6 +8,8 @@ type
         objBool,
         objNull,
         objError,
+        objReturn,
+        objConst,
         objInfix,
         objPrefix,
         objFunction
@@ -23,5 +27,13 @@ type
             boolValue*: bool
         of objError:
             error*: string
+        of objConst:
+            constValue*: Obj
+        of objFunction:
+            funcName*: Node
+            funcParams*: seq[string]
+            funcBody*: Node
+        of objReturn:
+            returnValue*: Obj
         else:
             discard
