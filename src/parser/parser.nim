@@ -70,6 +70,7 @@ proc newParser*(l: var Lexer): Parser =
 proc parseExpression(p: var Parser, precedence: int): Node
 proc parseLet(p: var Parser): Node
 proc parseConst(p: var Parser): Node
+proc parseReassignment(p: var Parser): Node
 proc parseReturn(p: var Parser): Node
 proc parseNodes(p: var Parser): Node
 proc parseIf(p: var Parser): Node
@@ -95,6 +96,12 @@ proc parseNodes(p: var Parser): Node =
     case p.currentToken.tokenType
         of LET, VAR:
             node = p.parseLet()
+        of IDENTIFIER:
+            if p.peekToken.tokenType == ASSIGN:
+                node = p.parseReassignment()
+                return node
+
+            node = p.parseExpression(ord(LOWEST))
         of CONST:
             node = p.parseConst()
         of RETURN:
@@ -118,12 +125,18 @@ proc parseVariableBody(p: var Parser, nodeType: NodeType): Node =
 
     var name = Node(nodeType: astIdent, identifier: p.currentToken.value)
     node.add(name)
+    
+    if p.peekToken.tokenType != ASSIGN:
+        node.add(Node(nodeType: astNull))
 
-    if not p.expectToken(ASSIGN):
-        return Node()
-
+        if p.peekToken.tokenType == SEMICOLON:
+            p.advance()
+            
+        return node
+    
     p.advance()
-
+    p.advance()
+    
     var value = p.parseExpression(ord(LOWEST))
 
     node.add(value)
@@ -138,6 +151,22 @@ proc parseLet(p: var Parser): Node =
 
 proc parseConst(p: var Parser): Node =
     return p.parseVariableBody(astConst)
+
+proc parseReassignment(p: var Parser): Node = 
+    var node = Node(nodeType: astReassignment)
+
+    var name = Node(nodeType: astIdent, identifier: p.currentToken.value)
+    node.add(name)
+
+    p.advance()
+    p.advance()
+
+    node.add(p.parseExpression(ord(LOWEST)))
+
+    if p.peekToken.tokenType == SEMICOLON:
+        p.advance()
+
+    return node
 
 proc parseReturn(p: var Parser): Node = 
     var node = Node(nodeType: astReturn)
@@ -350,6 +379,11 @@ proc parseBool(p: var Parser): Node =
 
     return node
 
+proc parseNull(p: var Parser): Node = 
+    var node = Node(nodeType: astNull)
+
+    return node
+
 proc parseTypeOf(p: var Parser): Node = 
     var node = Node(nodeType: astTypeOf)
 
@@ -425,6 +459,8 @@ proc parsePrefixNode(p: var Parser): Node =
         return p.parseFunction()
     of TRUE, FALSE:
         return p.parseBool()
+    of NULL:
+        return p.parseNull()
     of TYPEOF:
         return p.parseTypeOf()
     of NOT, MINUS:

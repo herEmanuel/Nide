@@ -49,6 +49,7 @@ const
     CONST* = "CONST"
     TRUE* = "TRUE"
     FALSE* = "FALSE"
+    NULL* = "NULL"
     IF* = "IF"
     ELSE* = "ELSE"
     RETURN* = "RETURN"
@@ -63,6 +64,7 @@ var keywords = {
     "var": VAR,
     "true": TRUE,
     "false": FALSE,
+    "null": NULL,
     "if": IF,
     "else": ELSE,
     "return": RETURN,

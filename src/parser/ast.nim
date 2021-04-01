@@ -6,6 +6,7 @@ type
         astFloat,
         astString,
         astBool,
+        astNull, 
         astOperator,
         astArray,
         astArrayAccess,

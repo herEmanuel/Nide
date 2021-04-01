@@ -15,7 +15,9 @@ proc isError(obj: Obj) =
         echo obj.error
         system.quit(0)
 
+proc isTrue(obj: Obj): bool
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj
+proc evalBlock(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalIntInfix(left: Obj, right: Obj, operation: string): Obj
 proc evalFloatInfix(left: Obj, right: Obj, operation: string): Obj
 proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): Obj
@@ -35,6 +37,8 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
             return TRUE
         
         return FALSE
+    of astNull:
+        return NULL
     of astReturn:
         var value = eval(node.value, st)
         isError(value)
@@ -61,6 +65,31 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
                     return TRUE
             else:
                 return raiseError("the ! operator can not be used with booleans")
+
+    of astPostfix:
+        var left = st.getSymbol(node.sons[0].identifier)
+        if left == nil:
+            return raiseError("undeclared identifier: {node.sons[0].identifier}".fmt)
+
+        var post: int
+        if node.sons[1].operator == "++":
+            post = 1
+        else:
+            post = -1
+
+        case left.objType 
+        of objInt:
+            left.intValue += post
+            st.reassignSymbol(node.sons[0].identifier, left)
+        of objFloat:
+            left.floatValue += post.toFloat
+            st.reassignSymbol(node.sons[0].identifier, left)
+        of objConst:
+            return raiseError("a constant can not be reassigned")
+        else:
+            return raiseError("the {node.sons[1].operator} operator can only be used with floats or integers".fmt)
+        
+        return left
 
     of astInfix:
         var left = eval(node.sons[0], st)
@@ -134,6 +163,15 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
         return raiseError("{node.sons[0].identifier} can not be redeclared".fmt)
 
+    of astReassignment:
+        var value = eval(node.sons[1], st)
+        isError(value)
+
+        if st.reassignSymbol(node.sons[0].identifier, value) == nil:
+            return raiseError("{node.sons[0].identifier} was not declared".fmt)
+
+        return NULL
+
     of astConst:
         var value = eval(node.sons[1], st)
         isError(value)
@@ -163,7 +201,7 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
     of astFuncCall:
         var function = eval(node.sons[0], st)
         isError(function)
-        echo %function
+        
         if function.objType != objFunction:
             return raiseError("{node.sons[0].identifier} is not callable".fmt)
 
@@ -177,9 +215,63 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
         return evalFunctionBody(function, args, st)
 
+    of astIf:
+        var condition = eval(node.sons[0], st)
+        isError(condition)
+
+        var localSt = newStWithOuter(st)
+
+        if isTrue(condition):
+            discard evalBlock(node.sons[1].elements, localSt)
+        elif node.sons.len == 3:
+            discard evalBlock(node.sons[2].elements, localSt)
+
+        return NULL 
+
+    of astWhile:
+        var condition = eval(node.sons[0], st)
+        isError(condition)
+
+        var localSt = newStWithOuter(st)
+
+        while isTrue(condition):
+            discard evalBlock(node.sons[1].elements, localSt)
+
+            condition = eval(node.sons[0], st)
+            isError(condition)
+
+        return NULL
+
+    of astFor:
+        var localSt = newStWithOuter(st)
+
+        var declaration = eval(node.sons[0], localSt)
+        isError(declaration)
+
+        var condition = eval(node.sons[1], localSt)
+        isError(condition)
+
+        while isTrue(condition):
+
+            discard evalBlock(node.sons[3].elements, localSt)
+
+            var action = eval(node.sons[2], localSt)
+            isError(action)
+
+            condition = eval(node.sons[1], localSt)
+            isError(condition)
+
+        return NULL
+
     else:
         discard
 
+
+proc isTrue(obj: Obj): bool = 
+    if obj != FALSE and obj != NULL:
+        return true
+
+    return false
 
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj =
     var result: Obj
@@ -192,6 +284,18 @@ proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj =
             return result
 
     return result
+
+proc evalBlock(nodes: seq[Node], st: ref SymbolTable): Obj = 
+    var res: Obj
+
+    for node in nodes:
+        res = eval(node, st)
+        isError(res)
+
+        if res.objType == objReturn:
+            return res
+
+    return res
 
 proc evalIntInfix(left: Obj, right: Obj, operation: string): Obj = 
     case operation

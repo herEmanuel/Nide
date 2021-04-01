@@ -40,5 +40,9 @@ proc reassignSymbol*(st: ref SymbolTable, name: string, newValue: Obj): Obj =
     if not st.symbols.hasKey(name):
         return nil
 
+    if st.symbols[name].objType == objConst:
+        echo "Evaluation error: a constant can not be reassigned"
+        system.quit(0)
+
     st.symbols[name] = newValue
     return newValue
