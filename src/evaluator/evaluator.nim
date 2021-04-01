@@ -1,6 +1,6 @@
 import ../parser/ast, obj, symbolTable
 from strformat import fmt
-import strutils, json
+import strutils
 
 let 
     TRUE = Obj(objType: objBool, boolValue: true)
@@ -262,6 +262,28 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
             isError(condition)
 
         return NULL
+
+    of astTypeOf:
+        var value = eval(node.value, st)
+        isError(value)
+
+        var returnType = Obj(objType: objString)
+
+        case value.objType 
+        of objInt:
+            returnType.strValue = "int"
+        of objFloat:
+            returnType.strValue = "float"
+        of objString:
+            returnType.strValue = "string"
+        of objNull:
+            returnType.strValue = "null"
+        of objBool:
+            returnType.strValue = "bool"
+        else:
+            return raiseError("unknown type for {value.objType}".fmt)
+
+        return returnType
 
     else:
         discard

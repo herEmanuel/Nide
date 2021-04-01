@@ -1,8 +1,10 @@
-import src/lexer/lexer
+import json 
+from strformat import fmt
+from os import getCurrentDir, commandLineParams
 # import src/lexer/tokens
+import src/lexer/lexer
 import src/parser/parser
 import src/evaluator/evaluator, src/evaluator/symbolTable
-import strformat, json, os
 
 proc repl() = 
     var st = newSt()

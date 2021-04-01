@@ -1,6 +1,6 @@
 import ../lexer/lexer, ../lexer/tokens
+from strformat import fmt
 import ast
-import strformat
 import tables
 import terminal
 
@@ -386,6 +386,8 @@ proc parseNull(p: var Parser): Node =
 
 proc parseTypeOf(p: var Parser): Node = 
     var node = Node(nodeType: astTypeOf)
+
+    p.advance()
 
     node.value = p.parseExpression(ord(LOWEST))
 
