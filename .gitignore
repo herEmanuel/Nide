@@ -1,2 +1,4 @@
 *.txt
 /bin
+*.exe
+*_test.nim

@@ -47,6 +47,7 @@ const
     LET* = "LET"
     VAR* = "VAR"
     CONST* = "CONST"
+    CLASS* = "CLASS"
     TRUE* = "TRUE"
     FALSE* = "FALSE"
     NULL* = "NULL"
@@ -62,6 +63,7 @@ var keywords = {
     "let": LET,
     "const": CONST,
     "var": VAR,
+    "class": CLASS,
     "true": TRUE,
     "false": FALSE,
     "null": NULL,

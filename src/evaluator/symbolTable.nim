@@ -3,7 +3,8 @@ import obj
 
 type
     SymbolTable* = object 
-        symbols: Table[string, Obj]
+        symbols*: Table[string, Obj]
+        pointerSymbols*: seq[pointer]
         outer: ref SymbolTable
 
 proc newSt*(): ref SymbolTable = 
