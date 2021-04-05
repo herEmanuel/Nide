@@ -5,7 +5,7 @@ type
     SymbolTable* = object 
         symbols*: Table[string, Obj]
         pointerSymbols*: seq[pointer]
-        outer: ref SymbolTable
+        outer*: ref SymbolTable
 
 proc newSt*(): ref SymbolTable = 
     var st = new(SymbolTable)

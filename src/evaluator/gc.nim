@@ -5,15 +5,15 @@ const
     FREE_LIST_ALLOCATION_AMOUNT = 10
 
 type 
-    Allocation* = object
+    Allocation*[T] = object
         marked: bool
-        value: int
+        value: T
         next: ptr Allocation
 
 type
     GarbageCollector = object 
-        head: ptr Allocation
-        freeList: array[FREE_LIST_ALLOCATION_AMOUNT, ptr Allocation]
+        head: pointer
+        freeList: array[FREE_LIST_ALLOCATION_AMOUNT, pointer]
         allocatedObjects: int
         st: ref SymbolTable
 
@@ -72,13 +72,16 @@ proc allocateOutsideFreeList(gc: ptr GarbageCollector, value: int): ptr Allocati
     echo allocation.repr
     return allocation
 
+#TODO: deallocate memory allocated outside of the free list
 proc free*(allocation: ptr Allocation) = 
     dealloc(allocation)
 
-proc mark(gc: ptr GarbageCollector) = 
-    for allocation in gc.st.pointerSymbols:
+proc mark(gc: ptr GarbageCollector, st: ref SymbolTable) = 
+    for allocation in st.pointerSymbols:
         var allocPtr = cast[ptr Allocation](allocation)
         allocPtr.marked = true
+    if st.outer != nil:
+        gc.mark(st.outer)
 
 proc sweep(gc: ptr GarbageCollector) = 
     var allocation = gc.head
@@ -105,6 +108,6 @@ proc sweep(gc: ptr GarbageCollector) =
 
 proc collect(gc: ptr GarbageCollector) = 
     var totalObjects = gc.allocatedObjects
-    gc.mark()
+    gc.mark(gc.st)
     gc.sweep()
     echo "Collected {totalObjects - gc.allocatedObjects} objects".fmt
