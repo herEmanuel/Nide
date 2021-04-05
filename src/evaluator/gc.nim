@@ -1,24 +1,24 @@
 import symbolTable
 from strformat import fmt
 
-const
-    FREE_LIST_ALLOCATION_AMOUNT = 10
+#NOTE: GENERICS DONT WORK FOR THIS SHIT!!!!!!!!!!
+
+const 
+    MAX_ALLOCATION_NUMBER = 10
 
 type 
-    Allocation* = object
+    Allocation*[T] = object
         marked: bool
-        value: int
-        next: ptr Allocation
+        value: T
+        next: pointer
 
 type
     GarbageCollector = object 
-        head: ptr Allocation
-        freeList: array[FREE_LIST_ALLOCATION_AMOUNT, ptr Allocation]
+        head: pointer
         allocatedObjects: int
         st: ref SymbolTable
 
-proc collect(gc: ptr GarbageCollector)
-proc allocateOutsideFreeList(gc: ptr GarbageCollector, value: int): ptr Allocation
+proc collect[T](gc: ptr GarbageCollector)
 
 proc gcInit*(st: ref SymbolTable): ptr GarbageCollector = 
     var gc = cast[ptr GarbageCollector](alloc0(sizeof(GarbageCollector)))
@@ -26,85 +26,59 @@ proc gcInit*(st: ref SymbolTable): ptr GarbageCollector =
     gc.allocatedObjects = 0
     gc.st = st
     
-    for i in 0..9:
-        gc.freeList[i] = cast[ptr Allocation](alloc0(sizeof(Allocation)))
-        echo gc.freeList[i].repr
-        
-    echo "Allocated 10 objects"
     return gc
 
-proc allocate*(gc: ptr GarbageCollector, value: int): ptr Allocation = 
-    var newAllocation: ptr Allocation
-
-    if gc.allocatedObjects == FREE_LIST_ALLOCATION_AMOUNT:
-        echo "All the free list is already allocated, starting the garbage collector"
-        #collect the garbage
-        gc.collect()
-    
-        if gc.allocatedObjects == FREE_LIST_ALLOCATION_AMOUNT:
-            echo "Could not collect any object, allocating outside the free list now"
-            return gc.allocateOutsideFreeList(value) 
-
-    for i in 0..9:
-        if gc.freeList[i] == nil:
-            continue
-
-        newAllocation = gc.freeList[i]
-        gc.freeList[i] = nil
-        break
+proc allocate*[T](gc: ptr GarbageCollector, value: T): ptr Allocation[T] = 
+    if gc.allocatedObjects == MAX_ALLOCATION_NUMBER:
+        gc.collect[:T]()
+    # echo sizeof(Allocation[T])
+    var newAllocation = cast[ptr Allocation[T]](alloc0(sizeof(Allocation[T])))
 
     newAllocation.value = value
     newAllocation.marked = false
-    newAllocation.next = gc.head
+    newAllocation.next = cast[ptr Allocation[T]](gc.head)
 
     gc.head = newAllocation
     gc.allocatedObjects += 1
+    echo value
+    echo newAllocation.repr
     
     return newAllocation
 
-proc allocateOutsideFreeList(gc: ptr GarbageCollector, value: int): ptr Allocation = 
-    var allocation = cast[ptr Allocation](alloc0(sizeof(Allocation)))
-    allocation.marked = false
-    allocation.value = value
-    allocation.next = gc.head
-
-    gc.head = allocation
-    echo allocation.repr
-    return allocation
-
-proc free*(allocation: ptr Allocation) = 
+proc free*(gc: ptr GarbageCollector, allocation: ptr Allocation) = 
     dealloc(allocation)
 
-proc mark(gc: ptr GarbageCollector) = 
+proc mark[T](gc: ptr GarbageCollector) = 
     for allocation in gc.st.pointerSymbols:
-        var allocPtr = cast[ptr Allocation](allocation)
+        var allocPtr = cast[ptr Allocation[T]](allocation)
         allocPtr.marked = true
 
-proc sweep(gc: ptr GarbageCollector) = 
-    var allocation = gc.head
-    var previous: ptr Allocation
+proc sweep[T](gc: ptr GarbageCollector) = 
+    var allocation = cast[ptr Allocation[T]](gc.head)
+    var previous: ptr Allocation[T]
 
     while allocation != nil:
+        echo allocation.value
         if not allocation.marked:
             var freeMemory = allocation
-            previous.next = allocation.next
-            allocation = allocation.next
+            
+            if previous == nil:
+                gc.head = allocation.next
+            else:
+                previous.next = allocation.next
 
-            freeMemory.zeroMem(sizeof(Allocation))
+            allocation = cast[ptr Allocation[T]](allocation.next)
 
-            for i in 0..9:
-                if gc.freeList[i] == nil:
-                    gc.freeList[i] = freeMemory
-                    break
+            gc.free(freeMemory)
 
             gc.allocatedObjects -= 1
         else:
             allocation.marked = false
             previous = allocation
-            allocation = allocation.next
+            allocation = cast[ptr Allocation[T]](allocation.next)
 
-proc collect(gc: ptr GarbageCollector) = 
+proc collect[T](gc: ptr GarbageCollector) = 
     var totalObjects = gc.allocatedObjects
-    gc.mark()
-    gc.sweep()
+    gc.mark[:T]()
+    gc.sweep[:T]()
     echo "Collected {totalObjects - gc.allocatedObjects} objects".fmt
