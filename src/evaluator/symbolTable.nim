@@ -11,6 +11,7 @@ proc newSt*(): ref SymbolTable =
     var st = new(SymbolTable)
 
     st.symbols = initTable[string, Obj]()
+    st.outer = nil
 
     return st
 
@@ -38,12 +39,21 @@ proc setSymbol*(st: ref SymbolTable, name: string, value: Obj): Obj =
     return value
 
 proc reassignSymbol*(st: ref SymbolTable, name: string, newValue: Obj): Obj = 
-    if not st.symbols.hasKey(name):
+    var symbol = st.getSymbol(name)
+    if symbol == nil:
         return nil
 
-    if st.symbols[name].objType == objConst:
+    if symbol.objType == objConst:
         echo "Evaluation error: a constant can not be reassigned"
         system.quit(0)
 
-    st.symbols[name] = newValue
+    if not st.symbols.hasKey(name):
+        var outer: ref SymbolTable
+        if st.outer != nil:
+            outer = st.outer
+
+        discard outer.reassignSymbol(name, newValue)
+    else:
+        st.symbols[name] = newValue
+    
     return newValue
