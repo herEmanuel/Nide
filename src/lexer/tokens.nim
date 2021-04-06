@@ -28,6 +28,7 @@ const
     MINUS* = "-"
     ASTERISK* = "*"
     SLASH* = "/"
+    BACKSLASH* = "\\"
     ASSIGN* = "="
     NOT* = "!"
     GREATER_THAN* = ">"

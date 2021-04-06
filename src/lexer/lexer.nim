@@ -1,5 +1,5 @@
-import tokens
-import strutils
+import tokens, strutils, terminal
+from strformat import fmt
 
 type 
     Lexer* = object
@@ -34,6 +34,10 @@ proc peekChar(l: var Lexer): char =
         return '\0'
 
     return l.input[l.position]
+
+proc addError(l: var Lexer, err: string) = 
+    styledEcho fgRed, "Lexing error: ", fgWhite, "" & err
+    system.quit(0)
 
 proc newLexer*(input: string, file: File): Lexer =
     var l = Lexer(input: input, file: file)
@@ -92,6 +96,8 @@ proc nextToken*(l: var Lexer): Token =
         tok = Token(tokenType: ASTERISK, value: $l.currentChar)
     of '/':
         tok = Token(tokenType: SLASH, value: $l.currentChar)
+    of '\\':
+        tok = Token(tokenType: BACKSLASH, value: $l.currentChar)
     of '=':
         tok = Token(tokenType: ASSIGN, value: $l.currentChar)
 
@@ -171,8 +177,24 @@ proc readString(l: var Lexer): string =
     l.nextChar()
 
     while l.currentChar != '"':
-        value.add(l.currentChar)
-        l.nextChar()
+
+        if l.currentChar == '\\':
+            
+            case l.peekChar
+            of '\\':
+                value.add(l.currentChar)
+            of 'n':
+                value.add("\n")
+            of '"':
+                value.add("\"")
+            else:
+                l.addError("can not escape {l.peekChar}".fmt)
+
+            l.nextChar()
+            l.nextChar()
+        else:
+            value.add(l.currentChar)
+            l.nextChar()
     
     return value
 

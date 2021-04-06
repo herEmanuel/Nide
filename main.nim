@@ -34,7 +34,7 @@ proc execFromFile(filePath: string) =
     var p = newParser(l)
 
     var program = p.parseProgram()
-    echo %eval(program, st)
+    discard eval(program, st)
 
     f.close()
 

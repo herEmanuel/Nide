@@ -1,11 +1,7 @@
 import ../parser/ast, obj, symbolTable
+import ../../lib/std/std
 from strformat import fmt
-import strutils
-
-let 
-    TRUE = Obj(objType: objBool, boolValue: true)
-    FALSE = Obj(objType: objBool, boolValue: false)
-    NULL = Obj(objType: objNull)
+import strutils, tables
 
 proc raiseError(err: string): Obj = 
     return Obj(objType: objError, error: "Evaluation error: {err}".fmt)
@@ -20,6 +16,7 @@ proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalBlock(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalIntInfix(left: Obj, right: Obj, operation: string): Obj
 proc evalFloatInfix(left: Obj, right: Obj, operation: string): Obj
+proc evalFunctionArgs(function: Node, st: ref SymbolTable): seq[Obj]
 proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): Obj
 
 proc eval*(node: Node, st: ref SymbolTable): Obj =
@@ -147,6 +144,9 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         
         var res = st.getSymbol(node.identifier)
         if res == nil:
+            if Builtin.hasKey(node.identifier):
+                return Obj(objType: objBuiltin, name: node.identifier)
+
             return raiseError("undeclared identifier: {node.identifier}".fmt)
 
         if res.objType == objConst:
@@ -202,7 +202,7 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         var function = eval(node.sons[0], st)
         isError(function)
         
-        if function.objType != objFunction:
+        if function.objType != objFunction and function.objType != objBuiltin:
             return raiseError("{node.sons[0].identifier} is not callable".fmt)
 
         var args: seq[Obj]
@@ -285,9 +285,26 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
         return returnType
 
+    of astDotExpr:
+        var objectName = node.sons[0].identifier
+
+        #referencing a function/property of a native object
+        if DefaultObjects.hasKey(objectName):
+            case node.sons[1].nodeType
+            of astIdent:
+                discard
+            of astFuncCall:
+                var funcCallNode = node.sons[1]
+                var functionName = node.sons[1].sons[0].identifier
+
+                var args = evalFunctionArgs(funcCallNode, st)
+
+                return DefaultObjects[objectName][functionName](args)
+            else:
+                return NULL
+
     else:
         discard
-
 
 proc isTrue(obj: Obj): bool = 
     if obj != FALSE and obj != NULL:
@@ -425,7 +442,22 @@ proc evalFloatInfix(left: Obj, right: Obj, operation: string): Obj =
     else: 
         discard
 
+proc evalFunctionArgs(function: Node, st: ref SymbolTable): seq[Obj] = 
+    var args: seq[Obj]
+
+    for arg in function.sons:
+        if function.sons[0] == arg:
+            continue
+
+        args.add(eval(arg, st))
+
+    return args
+
 proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): Obj = 
+    
+    if function.objType == objBuiltin:
+        return Builtin[function.name](args)
+    
     var st = newStWithOuter(outerSt)
 
     for i, arg in function.funcParams:

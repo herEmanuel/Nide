@@ -24,7 +24,8 @@ type
         astWhile,
         astFor,
         astTypeOf,
-        astImport
+        astImport,
+        astDotExpr
 
     Node* = ref object 
         case nodeType*: NodeType

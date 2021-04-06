@@ -12,7 +12,8 @@ type
         objConst,
         objInfix,
         objPrefix,
-        objFunction
+        objFunction,
+        objBuiltin
 
 type 
     Obj* = ref object 
@@ -35,5 +36,12 @@ type
             funcBody*: Node
         of objReturn:
             returnValue*: Obj
+        of objBuiltin:
+            name*: string
         else:
             discard
+
+let 
+    TRUE* = Obj(objType: objBool, boolValue: true)
+    FALSE* = Obj(objType: objBool, boolValue: false)
+    NULL* = Obj(objType: objNull)

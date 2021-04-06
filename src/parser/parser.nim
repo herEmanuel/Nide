@@ -18,6 +18,7 @@ type
         GL, # <, >, <= and >=
         SUM, # + and -
         DIVISION, # / and *
+        DOTEXPR, # console.log
         PREFIX, #-, !
         CALL # teste()
 
@@ -34,7 +35,8 @@ var tokenPrecedence = {
     AND: ord(OR_AND),
     LPAREN: ord(CALL),
     EQUAL: ord(NEQUAL),
-    NOT_EQUAL: ord(NEQUAL)
+    NOT_EQUAL: ord(NEQUAL),
+    DOT: ord(DOTEXPR)
 }.toTable
 
 proc advance(p: var Parser) = 
@@ -45,13 +47,11 @@ proc addError(p: var Parser, err: string) =
     styledEcho fgRed, "Parsing error: ", fgWhite, "" & err
     system.quit(0)
 
-proc expectToken(p: var Parser, tok: string): bool = 
+proc expectToken(p: var Parser, tok: string) = 
     if p.peekToken.tokenType != tok:
         p.addError("expected token of type {tok}, got {p.peekToken.tokenType} instead".fmt)
-        return false 
 
     p.advance()
-    return true
 
 proc peekPrecedence(p: var Parser): int = 
 
@@ -120,9 +120,8 @@ proc parseNodes(p: var Parser): Node =
 proc parseVariableBody(p: var Parser, nodeType: NodeType): Node = 
     var node = Node(nodeType: nodeType)
 
-    if not p.expectToken(IDENTIFIER):
-        return Node()
-
+    p.expectToken(IDENTIFIER)
+    
     var name = Node(nodeType: astIdent, identifier: p.currentToken.value)
     node.add(name)
     
@@ -188,8 +187,7 @@ proc parseBlock(p: var Parser): Node =
     while p.currentToken.tokenType != RBRACE:
         if p.currentToken.tokenType == EOF:
             p.addError("expected }, got EOF instead")
-            return Node()
-
+        
         node.elements.add(p.parseNodes())
         p.advance()
 
@@ -198,27 +196,23 @@ proc parseBlock(p: var Parser): Node =
 proc parseIf(p: var Parser): Node = 
     var node = Node(nodeType: astIf)
 
-    if not p.expectToken(LPAREN):
-        return Node()
-
+    p.expectToken(LPAREN)
+    
     p.advance()
 
     node.add(p.parseExpression(ord(LOWEST)))
 
-    if not p.expectToken(RPAREN):
-        return Node()
-
-    if not p.expectToken(LBRACE):
-        return Node()
-
+    p.expectToken(RPAREN)
+    
+    p.expectToken(LBRACE)
+    
     node.add(p.parseBlock())
 
     if p.peekToken.tokenType == ELSE:
         p.advance()
 
-        if not p.expectToken(LBRACE):
-            return Node()
-
+        p.expectToken(LBRACE)
+        
         node.add(p.parseBlock())
 
     return node
@@ -226,19 +220,16 @@ proc parseIf(p: var Parser): Node =
 proc parseWhile(p: var Parser): Node = 
     var node = Node(nodeType: astWhile)
 
-    if not p.expectToken(LPAREN):
-        return Node()
-
+    p.expectToken(LPAREN)
+    
     p.advance()
 
     node.add(p.parseExpression(ord(LOWEST)))
 
-    if not p.expectToken(RPAREN):
-        return Node()
-
-    if not p.expectToken(LBRACE):
-        return Node()
-
+    p.expectToken(RPAREN)
+    
+    p.expectToken(LBRACE)
+    
     node.add(p.parseBlock())
 
     return node
@@ -246,33 +237,29 @@ proc parseWhile(p: var Parser): Node =
 proc parseFor(p: var Parser): Node = 
     var node = Node(nodeType: astFor)
 
-    if not p.expectToken(LPAREN):
-        return Node()
-
+    p.expectToken(LPAREN)
+    
     p.advance()
 
     node.add(p.parseNodes())
-    #TODO: come back later to see if the code works
+    
     if p.currentToken.tokenType != SEMICOLON:
-        p.addError("expected a ;, got {p.currentToken.tokenType} instead".fmt)
+        p.addError("expected ;, got {p.currentToken.tokenType} instead".fmt)
 
     p.advance()
 
     node.add(p.parseExpression(ord(LOWEST)))
 
-    if not p.expectToken(SEMICOLON):
-        return Node()
-
+    p.expectToken(SEMICOLON)
+    
     p.advance()
 
     node.add(p.parseExpression(ord(LOWEST)))
 
-    if not p.expectToken(RPAREN):
-        return Node()
-
-    if not p.expectToken(LBRACE):
-        return Node()
-
+    p.expectToken(RPAREN)
+    
+    p.expectToken(LBRACE)
+    
     node.add(p.parseBlock())
 
     return node
@@ -280,20 +267,17 @@ proc parseFor(p: var Parser): Node =
 proc parseFunction(p: var Parser): Node = 
     var node = Node(nodeType: astFunction)
 
-    if not p.expectToken(IDENTIFIER):
-        return Node()
+    p.expectToken(IDENTIFIER)
     
     node.add(Node(nodeType: astIdent, identifier: p.currentToken.value))
 
-    if not p.expectToken(LPAREN):
-        return Node()
-
+    p.expectToken(LPAREN)
+    
     if p.peekToken.tokenType == RPAREN:
         p.advance() 
 
-        if not p.expectToken(LBRACE):
-            return Node()
-
+        p.expectToken(LBRACE)
+        
         node.add(p.parseBlock())
 
         return node
@@ -317,10 +301,8 @@ proc parseFunction(p: var Parser): Node =
 
     if p.currentToken.tokenType != RPAREN:
         p.addError("expected token of type ), got {p.currentToken.tokenType} instead".fmt)
-        return Node()
 
-    if not p.expectToken(LBRACE):
-        return Node()
+    p.expectToken(LBRACE)
 
     node.add(p.parseBlock())
 
@@ -348,6 +330,9 @@ proc parseFunctionCall(p: var Parser, left: Node): Node =
         node.add(p.parseExpression(ord(LOWEST)))
 
         p.advance()
+    
+    if p.currentToken.tokenType != RPAREN:
+        p.addError("expected ), got {p.currentToken.tokenType} instead".fmt)
 
     if p.peekToken.tokenType == SEMICOLON:
         p.advance()
@@ -409,6 +394,26 @@ proc parseInfix(p: var Parser, left: Node): Node =
 
     return node
 
+proc parseDotExpression(p: var Parser, left: Node): Node = 
+    var node = Node(nodeType: astDotExpr)
+
+    if left.nodeType != astIdent:
+        p.addError("expected an identifier, got {left.nodeType} instead".fmt)
+    
+    node.add(left)
+
+    p.advance()
+    p.advance()
+
+    var value = p.parseExpression(ord(LOWEST))
+    if value.nodeType != astIdent and value.nodeType != astFuncCall:
+         p.addError("expected an identifier or a function call, got {value.nodeType} instead".fmt)
+
+    node.add(value)
+
+    return node
+
+
 proc parsePrefix(p: var Parser): Node = 
     var node = Node(nodeType: astPrefix)
 
@@ -425,9 +430,8 @@ proc parseGroupedExpression(p: var Parser): Node =
 
     var expression = p.parseExpression(ord(LOWEST))
 
-    if not p.expectToken(RPAREN):
-        return Node()
-
+    p.expectToken(RPAREN)
+    
     return expression
 
 proc parsePostfixIfExists(p: var Parser, token: string, left: Node): Node = 
@@ -469,7 +473,7 @@ proc parsePrefixNode(p: var Parser): Node =
         return p.parsePrefix()
     else:
         p.addError("{p.currentToken.tokenType} can not be used as an expression".fmt)
-        return Node()
+    
 
 proc parseExpression(p: var Parser, precedence: int): Node = 
 
@@ -480,10 +484,12 @@ proc parseExpression(p: var Parser, precedence: int): Node =
     left = p.parsePostfixIfExists(p.peekToken.tokenType, left)
 
     while p.peekToken.tokenType != SEMICOLON and p.peekPrecedence() > precedence:
-        #TODO: check for other functions available to infix expressions
+        
         case p.peekToken.tokenType
         of LPAREN:
             left = p.parseFunctionCall(left)
+        of DOT:
+            left = p.parseDotExpression(left)
         else:
             left = p.parseInfix(left)
 
