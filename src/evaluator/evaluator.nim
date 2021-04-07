@@ -23,6 +23,8 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
     case node.nodeType 
     of astProgram:
         return evalProgram(node.elements, st)
+    of astImport:
+        discard
     of astInt:
         return Obj(objType: objInt, intValue: parseInt(node.intValue))
     of astFloat:
@@ -36,6 +38,35 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         return FALSE
     of astNull:
         return NULL
+    of astArray:
+        var elements: seq[Obj]
+
+        for elem in node.elements:
+            var res = eval(elem, st)
+            isError(res)
+
+            elements.add(res)
+
+        return Obj(objType: objArray, elements: elements, length: elements.len)
+
+    of astArrayAccess:
+        var arr = eval(node.arr, st)
+        isError(arr)
+
+        if arr.objType != objArray:
+            return raiseError("left member is not an array, and therefore can not be indexed")
+
+        var index = eval(node.index, st)
+        isError(index)
+
+        if index.objType != objInt:
+            return raiseError("the index must be an integer")
+
+        if arr.length <= index.intValue:
+            return raiseError("array out of bounds; length is {arr.length}, but tried to index {index.intValue}".fmt)
+
+        return arr.elements[index.intValue]
+
     of astReturn:
         var value = eval(node.value, st)
         isError(value)
@@ -220,11 +251,15 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         isError(condition)
 
         var localSt = newStWithOuter(st)
+        var res: Obj
 
         if isTrue(condition):
-            discard evalBlock(node.sons[1].elements, localSt)
+            res = evalBlock(node.sons[1].elements, localSt)
         elif node.sons.len == 3:
-            discard evalBlock(node.sons[2].elements, localSt)
+            res = evalBlock(node.sons[2].elements, localSt)
+
+        if res != nil and res.objType == objReturn:
+            return res
 
         return NULL 
 
@@ -233,9 +268,12 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         isError(condition)
 
         var localSt = newStWithOuter(st)
+        var res: Obj
 
         while isTrue(condition):
-            discard evalBlock(node.sons[1].elements, localSt)
+            res = evalBlock(node.sons[1].elements, localSt)
+            if res.objType == objReturn:
+                return res
 
             condition = eval(node.sons[0], st)
             isError(condition)
@@ -244,6 +282,7 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
     of astFor:
         var localSt = newStWithOuter(st)
+        var res: Obj
 
         var declaration = eval(node.sons[0], localSt)
         isError(declaration)
@@ -253,7 +292,9 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
         while isTrue(condition):
 
-            discard evalBlock(node.sons[3].elements, localSt)
+            res = evalBlock(node.sons[3].elements, localSt)
+            if res.objType == objReturn:
+                return res
 
             var action = eval(node.sons[2], localSt)
             isError(action)
@@ -313,16 +354,16 @@ proc isTrue(obj: Obj): bool =
     return false
 
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj =
-    var result: Obj
+    var res: Obj
 
     for node in nodes:
-        result = eval(node, st)
-        isError(result)
+        res = eval(node, st)
+        isError(res)
 
-        if result.objType == objReturn:
-            return result
+        if res.objType == objReturn:
+            return res
 
-    return result
+    return res
 
 proc evalBlock(nodes: seq[Node], st: ref SymbolTable): Obj = 
     var res: Obj
@@ -330,7 +371,7 @@ proc evalBlock(nodes: seq[Node], st: ref SymbolTable): Obj =
     for node in nodes:
         res = eval(node, st)
         isError(res)
-
+        
         if res.objType == objReturn:
             return res
 
@@ -463,7 +504,7 @@ proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): 
     for i, arg in function.funcParams:
         discard st.setSymbol(arg, args[i])
 
-    var bodyResult = evalProgram(function.funcBody.elements, st)
+    var bodyResult = evalBlock(function.funcBody.elements, st)
     if bodyResult.objType == objReturn:
         return bodyResult.returnValue
 

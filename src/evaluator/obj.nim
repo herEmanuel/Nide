@@ -6,6 +6,7 @@ type
         objString,
         objFloat,
         objBool,
+        objArray, 
         objNull,
         objError,
         objReturn,
@@ -38,6 +39,9 @@ type
             returnValue*: Obj
         of objBuiltin:
             name*: string
+        of objArray:
+            elements*: seq[Obj]
+            length*: int
         else:
             discard
 

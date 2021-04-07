@@ -21,6 +21,7 @@ proc repl() =
         var l = newLexer(input, nil)
         var p = newParser(l)
         var program = p.parseProgram()
+        echo %program
 
         echo %eval(program, st)
 

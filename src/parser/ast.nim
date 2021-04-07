@@ -45,6 +45,13 @@ type
             operator*: string
         of astArray, astProgram, astBlock:
             elements*: seq[Node]
+        of astArrayAccess:
+            index*: Node
+            arr*: Node
+        of astImport:
+            module*: string
+            defaultImport*: string
+            imports*: seq[string]
         else:
             sons*: seq[Node]
         

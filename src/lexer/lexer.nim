@@ -111,19 +111,17 @@ proc nextToken*(l: var Lexer): Token =
             tok = Token(tokenType: NOT_EQUAL, value: "!=")
             l.nextChar()
     of '>':
+        tok = Token(tokenType: GREATER_THAN, value: $l.currentChar)
+        
         if l.peekChar() == '=':
             tok = Token(tokenType: GREATER_THAN_OR_EQUAL, value: ">=")
             l.nextChar()
-            return tok
-
-        tok = Token(tokenType: GREATER_THAN, value: $l.currentChar)
     of '<':
+        tok = Token(tokenType: LESS_THAN, value: $l.currentChar)
+        
         if l.peekChar() == '=':
             tok = Token(tokenType: LESS_THAN_OR_EQUAL, value: "<=")
             l.nextChar()
-            return tok
-
-        tok = Token(tokenType: LESS_THAN, value: $l.currentChar)
     of '&':
         tok = Token(tokenType: ILLEGAL, value: $l.currentChar)
         

@@ -43,6 +43,11 @@ const
     INC* = "++"
     DEC* = "--"
 
+    IMPORT* = "IMPORT"
+    EXPORT* = "EXPORT"
+    DEFAULT* = "DEFAULT"
+    AS* = "AS"
+    FROM* = "FROM"
     FUNCTION* = "FUNCTION"
     TYPEOF* = "TYPEOF"
     LET* = "LET"
@@ -60,6 +65,11 @@ const
 
 
 var keywords = {
+    "import": IMPORT,
+    "export": EXPORT,
+    "default": DEFAULT,
+    "as": AS,
+    "from": FROM,
     "function": FUNCTION,
     "let": LET,
     "const": CONST,

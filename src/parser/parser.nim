@@ -19,6 +19,7 @@ type
         SUM, # + and -
         DIVISION, # / and *
         DOTEXPR, # console.log
+        ARRACCESS, # x[y]
         PREFIX, #-, !
         CALL # teste()
 
@@ -34,6 +35,7 @@ var tokenPrecedence = {
     OR: ord(OR_AND),
     AND: ord(OR_AND),
     LPAREN: ord(CALL),
+    LSQBRACK: ord(ARRACCESS),
     EQUAL: ord(NEQUAL),
     NOT_EQUAL: ord(NEQUAL),
     DOT: ord(DOTEXPR)
@@ -68,6 +70,7 @@ proc newParser*(l: var Lexer): Parser =
     return p
 
 proc parseExpression(p: var Parser, precedence: int): Node
+proc parseImport(p: var Parser): Node 
 proc parseLet(p: var Parser): Node
 proc parseConst(p: var Parser): Node
 proc parseReassignment(p: var Parser): Node
@@ -94,6 +97,10 @@ proc parseNodes(p: var Parser): Node =
     var node: Node
 
     case p.currentToken.tokenType
+        of IMPORT:
+            node = p.parseImport()
+        # of EXPORT:
+        #     node = p.parseExport()
         of LET, VAR:
             node = p.parseLet()
         of IDENTIFIER:
@@ -114,6 +121,57 @@ proc parseNodes(p: var Parser): Node =
             node = p.parseFor()
         else:
             node = p.parseExpression(ord(LOWEST))
+
+    return node
+
+proc parseImport(p: var Parser): Node = 
+    var node = Node(nodeType: astImport)
+
+    if p.peekToken.tokenType == LBRACE:
+        #import non default exports
+        p.advance()
+        p.advance()
+
+        if p.currentToken.tokenType != IDENTIFIER:
+            p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
+
+        node.imports.add(p.currentToken.value)
+
+        if p.peekToken.tokenType == RBRACE:
+            p.advance()
+        else:
+            p.expectToken(COMMA)
+
+        while p.currentToken.tokenType == COMMA:
+            p.advance()
+
+            if p.currentToken.tokenType != IDENTIFIER:
+                p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
+
+            node.imports.add(p.currentToken.value) 
+
+            p.advance()
+
+        p.advance()
+
+        if p.currentToken.tokenType != FROM:
+            p.addError("expected from, got {p.currentToken.tokenType} instead".fmt)
+
+        p.advance()
+
+        if p.currentToken.tokenType != STRING:
+            p.addError("expected a string, got {p.currentToken.tokenType} instead".fmt)
+
+        node.module = p.currentToken.value
+
+        return node
+
+    elif p.peekToken.tokenType == ASTERISK:
+        #import everything from a file
+        discard
+    else:
+        #import default export
+        discard
 
     return node
 
@@ -434,6 +492,43 @@ proc parseGroupedExpression(p: var Parser): Node =
     
     return expression
 
+proc parseArrayDeclaration(p: var Parser): Node = 
+    var node = Node(nodeType: astArray)
+
+    p.advance()
+
+    var element = p.parseExpression(ord(LOWEST))
+    node.elements.add(element)
+    
+    if p.peekToken.tokenType == RSQBRACK:
+        p.advance()
+        return node
+
+    p.expectToken(COMMA)
+
+    while p.currentToken.tokenType == COMMA:
+        p.advance()
+        element = p.parseExpression(ord(LOWEST))
+        node.elements.add(element)
+        p.advance()
+
+    if p.currentToken.tokenType != RSQBRACK:
+        p.addError("expected ], got {p.currentToken.tokenType} instead".fmt)
+
+    return node
+
+proc parseArrayAccess(p: var Parser, left: Node): Node = 
+    var node = Node(nodeType: astArrayAccess, arr: left)
+
+    p.advance()
+    p.advance()
+
+    node.index = p.parseExpression(ord(LOWEST))
+
+    p.expectToken(RSQBRACK)
+
+    return node
+
 proc parsePostfixIfExists(p: var Parser, token: string, left: Node): Node = 
     case token
     of INC, DEC:
@@ -455,6 +550,8 @@ proc parsePrefixNode(p: var Parser): Node =
         return p.parseIdentifier()
     of LPAREN:
         return p.parseGroupedExpression()
+    of LSQBRACK:
+        return p.parseArrayDeclaration()
     of INT:
         return p.parseInteger()
     of FLOAT:
@@ -474,7 +571,6 @@ proc parsePrefixNode(p: var Parser): Node =
     else:
         p.addError("{p.currentToken.tokenType} can not be used as an expression".fmt)
     
-
 proc parseExpression(p: var Parser, precedence: int): Node = 
 
     var left: Node
@@ -488,6 +584,8 @@ proc parseExpression(p: var Parser, precedence: int): Node =
         case p.peekToken.tokenType
         of LPAREN:
             left = p.parseFunctionCall(left)
+        of LSQBRACK:
+            left = p.parseArrayAccess(left)
         of DOT:
             left = p.parseDotExpression(left)
         else:
