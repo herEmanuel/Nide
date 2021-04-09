@@ -1,8 +1,6 @@
 import symbolTable
 from strformat import fmt
 
-#NOTE: GENERICS DONT WORK FOR THIS SHIT!!!!!!!!!!
-
 const 
     MAX_ALLOCATION_NUMBER = 10
 
@@ -31,7 +29,7 @@ proc gcInit*(st: ref SymbolTable): ptr GarbageCollector =
 proc allocate*[T](gc: ptr GarbageCollector, value: T): ptr Allocation[T] = 
     if gc.allocatedObjects == MAX_ALLOCATION_NUMBER:
         gc.collect[:T]()
-    # echo sizeof(Allocation[T])
+    
     var newAllocation = cast[ptr Allocation[T]](alloc0(sizeof(Allocation[T])))
 
     newAllocation.value = value
