@@ -47,6 +47,7 @@ proc advance(p: var Parser) =
 
 proc addError(p: var Parser, err: string) = 
     styledEcho fgRed, "Parsing error: ", fgWhite, "" & err
+    styledEcho fgYellow, "Line: {p.l.line}".fmt
     system.quit(0)
 
 proc expectToken(p: var Parser, tok: string) = 

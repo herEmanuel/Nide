@@ -6,6 +6,7 @@ type
         position: int
         nextPosition: int
         currentChar: char
+        line*: int
         input: string
         file: File
 
@@ -15,6 +16,7 @@ proc nextChar(l: var Lexer) =
 
         try:
             var newLine = l.file.readLine()
+            l.line += 1
             if newLine == "":
                 l.nextChar()
                 return
@@ -37,10 +39,11 @@ proc peekChar(l: var Lexer): char =
 
 proc addError(l: var Lexer, err: string) = 
     styledEcho fgRed, "Lexing error: ", fgWhite, "" & err
+    styledEcho fgYellow, "Line: {l.line}".fmt
     system.quit(0)
 
 proc newLexer*(input: string, file: File): Lexer =
-    var l = Lexer(input: input, file: file)
+    var l = Lexer(input: input, file: file, line: 1)
 
     l.nextChar()
     l.nextChar()
@@ -60,7 +63,7 @@ proc nextToken*(l: var Lexer): Token =
     var tok: Token
   
     l.consumeWhitespace()
-
+    
     case l.currentChar
     of '.':
         tok = Token(tokenType: DOT, value: $l.currentChar)
@@ -95,6 +98,24 @@ proc nextToken*(l: var Lexer): Token =
     of '*':
         tok = Token(tokenType: ASTERISK, value: $l.currentChar)
     of '/':
+        if l.peekChar() == '/':
+            var currLine = l.line
+            while l.line == currLine and l.currentChar != '\0':
+                l.nextChar()
+            
+            return l.nextToken()
+        elif l.peekChar() == '*':
+            while l.currentChar != '*' or l.peekChar() != '/':
+                if l.currentChar == '\0':
+                    l.addError("expected end of the multiline comment, got EOF instead")
+                
+                l.nextChar()
+
+            l.nextChar()
+            l.nextChar()
+            
+            return l.nextToken()
+
         tok = Token(tokenType: SLASH, value: $l.currentChar)
     of '\\':
         tok = Token(tokenType: BACKSLASH, value: $l.currentChar)
@@ -140,6 +161,7 @@ proc nextToken*(l: var Lexer): Token =
         tok = Token(tokenType: STRING, value: value)
     of '\0':
         tok = Token(tokenType: EOF, value: EOF)
+        return tok
     else:
         if isAlphaAscii(l.currentChar):
             var value = l.readIdentifier()

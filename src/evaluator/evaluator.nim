@@ -340,6 +340,9 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
                 var args = evalFunctionArgs(funcCallNode, st)
 
+                if not DefaultObjects[objectName].hasKey(functionName):
+                    return raiseError("undeclared identifier for object console: {functionName}".fmt)
+
                 return DefaultObjects[objectName][functionName](args)
             else:
                 return NULL
