@@ -1,7 +1,7 @@
 import symbolTable
 from strformat import fmt
 
-const 
+var 
     MAX_ALLOCATION_NUMBER = 10
 
 type 
@@ -16,7 +16,7 @@ type
         allocatedObjects: int
         st: ref SymbolTable
 
-proc collect[T](gc: ptr GarbageCollector)
+proc collect[T](gc: ptr GarbageCollector): bool
 
 proc gcInit*(st: ref SymbolTable): ptr GarbageCollector = 
     var gc = cast[ptr GarbageCollector](alloc0(sizeof(GarbageCollector)))
@@ -28,7 +28,9 @@ proc gcInit*(st: ref SymbolTable): ptr GarbageCollector =
 
 proc allocate*[T](gc: ptr GarbageCollector, value: T): ptr Allocation[T] = 
     if gc.allocatedObjects == MAX_ALLOCATION_NUMBER:
-        gc.collect[:T]()
+        if not gc.collect[:T]():
+            MAX_ALLOCATION_NUMBER += MAX_ALLOCATION_NUMBER / 2
+            return gc.allocate[:T](value)
     
     var newAllocation = cast[ptr Allocation[T]](alloc0(sizeof(Allocation[T])))
 
@@ -53,10 +55,9 @@ proc mark[T](gc: ptr GarbageCollector) =
 
 proc sweep[T](gc: ptr GarbageCollector) = 
     var allocation = cast[ptr Allocation[T]](gc.head)
-    var previous: ptr Allocation[T]
+    var previous: pointer
 
     while allocation != nil:
-        echo allocation.value
         if not allocation.marked:
             var freeMemory = allocation
             
@@ -75,8 +76,10 @@ proc sweep[T](gc: ptr GarbageCollector) =
             previous = allocation
             allocation = cast[ptr Allocation[T]](allocation.next)
 
-proc collect[T](gc: ptr GarbageCollector) = 
+proc collect[T](gc: ptr GarbageCollector): bool = 
     var totalObjects = gc.allocatedObjects
     gc.mark[:T]()
     gc.sweep[:T]()
     echo "Collected {totalObjects - gc.allocatedObjects} objects".fmt
+
+    return gc.allocatedObjects != totalObjects
