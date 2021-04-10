@@ -12,6 +12,7 @@ proc isError(obj: Obj) =
         system.quit(0)
 
 proc isTrue(obj: Obj): bool
+proc evalImport(node: Node, st: ref SymbolTable): Obj
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalBlock(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalIntInfix(left: Obj, right: Obj, operation: string): Obj
@@ -24,7 +25,7 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
     of astProgram:
         return evalProgram(node.elements, st)
     of astImport:
-        discard
+        return evalImport(node, st)
     of astInt:
         return Obj(objType: objInt, intValue: parseInt(node.intValue))
     of astFloat:
@@ -329,23 +330,34 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
     of astDotExpr:
         var objectName = node.sons[0].identifier
 
-        #referencing a function/property of a native object
-        if DefaultObjects.hasKey(objectName):
-            case node.sons[1].nodeType
-            of astIdent:
-                discard
-            of astFuncCall:
+        case node.sons[1].nodeType
+        of astIdent:
+            discard
+        of astFuncCall:
+            var functionName = node.sons[1].sons[0].identifier
+
+            #referencing a function/property of a native object
+            if DefaultObjects.hasKey(objectName):
                 var funcCallNode = node.sons[1]
-                var functionName = node.sons[1].sons[0].identifier
 
                 var args = evalFunctionArgs(funcCallNode, st)
 
                 if not DefaultObjects[objectName].hasKey(functionName):
-                    return raiseError("undeclared identifier for object console: {functionName}".fmt)
+                    return raiseError("undeclared method for object {objectName}: {functionName}".fmt)
 
                 return DefaultObjects[objectName][functionName](args)
             else:
-                return NULL
+                var objVal = eval(node.sons[0], st)
+                isError(objVal)
+                
+                if objVal.objType != objObject:
+                    if not ObjectMethods[objVal.objType].hasKey(functionName):
+                        return raiseError("undeclared method for identifier {objectName}: {functionName}".fmt)
+                    
+                    var res = ObjectMethods[objVal.objType][functionName](objVal)
+                    return st.reassignSymbol(node.sons[0].identifier, res)
+        else:
+            return NULL
 
     else:
         discard
@@ -355,6 +367,9 @@ proc isTrue(obj: Obj): bool =
         return true
 
     return false
+
+proc evalImport(node: Node, st: ref SymbolTable): Obj = 
+    discard
 
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj =
     var res: Obj

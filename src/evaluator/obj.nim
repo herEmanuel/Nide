@@ -14,7 +14,8 @@ type
         objInfix,
         objPrefix,
         objFunction,
-        objBuiltin
+        objBuiltin,
+        objObject
 
 type 
     Obj* = ref object 

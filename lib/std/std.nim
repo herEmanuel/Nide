@@ -1,4 +1,4 @@
-import tables
+import tables, numbers, strutils
 import ../../src/evaluator/obj
 from strformat import fmt
 
@@ -7,7 +7,7 @@ from strformat import fmt
 proc raiseError(err: string): Obj = 
     return Obj(objType: objError, error: "Evaluation error: {err}".fmt)
 
-proc log*(args: varargs[Obj]): Obj = 
+proc std_log*(args: varargs[Obj]): Obj = 
     if args.len == 0:
         return raiseError("expected 1 argument or more, got 0")
 
@@ -26,24 +26,61 @@ proc log*(args: varargs[Obj]): Obj =
 
     return NULL
 
-var DefaultObjects* = {
-    "console": {
-        "log": log
-    }.toTable
-}.toTable
-
-proc prompt*(args: varargs[Obj]): Obj = 
+proc std_prompt*(args: varargs[Obj]): Obj = 
     if args.len > 1:
         return raiseError("prompt can not use more than one argument")
 
     if args.len != 0:
-        discard log(args)
+        discard std_log(args)
 
-    var input = readLine(stdin)
+    try:
+        var input = readLine(stdin)
+        return Obj(objType: objString, strValue: input)
+    except:
+        return raiseError("could not read from the console")
 
-    return Obj(objType: objString, strValue: input)
+proc std_parseInt*(args: varargs[Obj]): Obj = 
+    if args.len != 1:
+        return raiseError("expected one argument for parseInt, got {args.len} instead".fmt)
+        
+    var res: Obj
 
-var Builtin* = {
-    "prompt": prompt
-}.toTable
+    try:
+        res = Obj(objType: objInt, intValue: parseInt(args[0].strValue))
+    except ValueError:
+        return raiseError("argument passed to parseInt is not an int")
+
+    return res
+
+proc std_parseFloat*(args: varargs[Obj]): Obj = 
+    if args.len != 1:
+        return raiseError("expected one argument for parseFloat, got {args.len} instead".fmt)
+    
+    var res: Obj
+
+    try:
+        res = Obj(objType: objFloat, floatValue: parseFloat(args[0].strValue))
+    except ValueError:
+        return raiseError("argument passed to parseFloat is not a float")
+
+    return res
+
+var 
+    DefaultObjects* = {
+        "console": {
+            "log": std_log
+        }.toTable
+    }.toTable
+
+    Builtin* = {
+        "prompt": std_prompt,
+        "parseInt": std_parseInt,
+        "parseFloat": std_parseFloat
+    }.toTable
+
+    ObjectMethods* = {
+        objInt, objFloat: {
+            "toString": numbers_toString
+        }.toTable,
+    }.toTable
 

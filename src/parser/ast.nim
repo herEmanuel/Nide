@@ -25,6 +25,8 @@ type
         astFor,
         astTypeOf,
         astImport,
+        astExport,
+        astAs,
         astDotExpr
 
     Node* = ref object 
@@ -48,10 +50,17 @@ type
         of astArrayAccess:
             index*: Node
             arr*: Node
+        of astAs:
+            original*: string
+            modified*: string
         of astImport:
-            module*: string
-            defaultImport*: string
+            module*: string 
+            defaultImport*: Node
             imports*: seq[string]
+            everything*: bool
+        of astExport:
+            defaultExport*: Node
+            exportNode*: Node
         else:
             sons*: seq[Node]
         

@@ -45,6 +45,10 @@ proc advance(p: var Parser) =
     p.currentToken = p.peekToken
     p.peekToken = p.l.nextToken()
 
+proc advanceOnSemicolon(p: var Parser) = 
+    if p.peekToken.tokenType == SEMICOLON:
+        p.advance()
+
 proc addError(p: var Parser, err: string) = 
     styledEcho fgRed, "Parsing error: ", fgWhite, "" & err
     styledEcho fgYellow, "Line: {p.l.line}".fmt
@@ -72,6 +76,7 @@ proc newParser*(l: var Lexer): Parser =
 
 proc parseExpression(p: var Parser, precedence: int): Node
 proc parseImport(p: var Parser): Node 
+proc parseExport(p: var Parser): Node
 proc parseLet(p: var Parser): Node
 proc parseConst(p: var Parser): Node
 proc parseReassignment(p: var Parser): Node
@@ -100,8 +105,8 @@ proc parseNodes(p: var Parser): Node =
     case p.currentToken.tokenType
         of IMPORT:
             node = p.parseImport()
-        # of EXPORT:
-        #     node = p.parseExport()
+        of EXPORT:
+            node = p.parseExport()
         of LET, VAR:
             node = p.parseLet()
         of IDENTIFIER:
@@ -130,6 +135,8 @@ proc parseImport(p: var Parser): Node =
 
     if p.peekToken.tokenType == LBRACE:
         #import non default exports
+        node.everything = false
+
         p.advance()
         p.advance()
 
@@ -153,26 +160,83 @@ proc parseImport(p: var Parser): Node =
 
             p.advance()
 
-        p.advance()
-
-        if p.currentToken.tokenType != FROM:
-            p.addError("expected from, got {p.currentToken.tokenType} instead".fmt)
-
-        p.advance()
-
-        if p.currentToken.tokenType != STRING:
-            p.addError("expected a string, got {p.currentToken.tokenType} instead".fmt)
-
-        node.module = p.currentToken.value
-
-        return node
 
     elif p.peekToken.tokenType == ASTERISK:
         #import everything from a file
-        discard
+        node.everything = true
+
+        p.advance()
+        p.expectToken(AS)
+        p.advance()
+
+        if p.currentToken.tokenType != IDENTIFIER:
+            p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
+        
+        node.imports.add(p.currentToken.value)
     else:
         #import default export
-        discard
+        node.everything = false
+        if p.peekToken.tokenType != IDENTIFIER:
+            p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
+
+        p.advance()
+        var defaultName = p.currentToken.value
+
+        if p.peekToken.tokenType == AS:
+            p.advance()
+            p.advance()
+
+            if p.currentToken.tokenType != IDENTIFIER:
+                p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
+        
+            node.defaultImport = Node(nodeType: astAs, original: defaultName, modified: p.currentToken.value)
+
+        else:
+            node.defaultImport = Node(nodeType: astAs, original: defaultName)
+
+    p.advance()
+
+    if p.currentToken.tokenType != FROM:
+        p.addError("expected from, got {p.currentToken.tokenType} instead".fmt)
+
+    p.advance()
+
+    if p.currentToken.tokenType != STRING:
+        p.addError("expected a string, got {p.currentToken.tokenType} instead".fmt)
+
+    node.module = p.currentToken.value
+
+    p.advanceOnSemicolon()
+
+    return node
+
+proc parseExport(p: var Parser): Node = 
+    var node = Node(nodeType: astExport)
+    var default = false
+
+    p.advance()
+
+    if p.currentToken.tokenType == DEFAULT:
+        default = true
+        p.advance()
+
+    var res: Node
+
+    case p.currentToken.tokenType
+    of LET, VAR:
+        res = p.parseLet()
+    of CONST:
+        res = p.parseConst()    
+    else:
+        res = p.parseExpression(ord(LOWEST))
+
+    if default:
+        node.defaultImport = res
+    else:
+        node.exportNode = res
+
+    if p.peekToken.tokenType == SEMICOLON and p.currentToken.tokenType != SEMICOLON:
+        p.advance()
 
     return node
 
@@ -199,8 +263,7 @@ proc parseVariableBody(p: var Parser, nodeType: NodeType): Node =
 
     node.add(value)
 
-    if p.peekToken.tokenType == SEMICOLON:
-        p.advance()
+    p.advanceOnSemicolon()
     
     return node
 
@@ -221,8 +284,7 @@ proc parseReassignment(p: var Parser): Node =
 
     node.add(p.parseExpression(ord(LOWEST)))
 
-    if p.peekToken.tokenType == SEMICOLON:
-        p.advance()
+    p.advanceOnSemicolon()
 
     return node
 
@@ -233,8 +295,7 @@ proc parseReturn(p: var Parser): Node =
 
     node.value = p.parseExpression(ord(LOWEST))
 
-    if p.peekToken.tokenType == SEMICOLON:
-        p.advance()
+    p.advanceOnSemicolon()
 
     return node
 
@@ -393,8 +454,7 @@ proc parseFunctionCall(p: var Parser, left: Node): Node =
     if p.currentToken.tokenType != RPAREN:
         p.addError("expected ), got {p.currentToken.tokenType} instead".fmt)
 
-    if p.peekToken.tokenType == SEMICOLON:
-        p.advance()
+    p.advanceOnSemicolon()
 
     return node
 
