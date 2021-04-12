@@ -2,7 +2,7 @@ import symbolTable
 from strformat import fmt 
 
 var
-    MAX_ALLOCATION_NUMBER = 3000
+    MAX_ALLOCATION_NUMBER = 15
 
 type 
     AllocationHeader* = object 
@@ -14,7 +14,6 @@ type
     GarbageCollector* = object
         head: pointer
         allocatedObjects: int
-        paused: bool
         st: ref SymbolTable
 
 proc `+`(p1: pointer, val: int): pointer = 
@@ -27,7 +26,6 @@ proc gc_init*(): ptr GarbageCollector =
 
     gc.head = nil
     gc.allocatedObjects = 0
-    gc.paused = false
 
     return gc
 
@@ -35,7 +33,7 @@ proc gc_stop(gc: ptr GarbageCollector) =
     dealloc(gc)
 
 proc allocate*(gc: ptr GarbageCollector, sizePerUnit: int, units: int, st: ref SymbolTable): pointer = 
-    echo getTotalMem()
+    
     if MAX_ALLOCATION_NUMBER == gc.allocatedObjects:
         if not gc.collect():
             #[ if it didn't collect anything, increase the max number 
@@ -58,10 +56,13 @@ proc allocate*(gc: ptr GarbageCollector, sizePerUnit: int, units: int, st: ref S
 proc free*(gc: ptr GarbageCollector, allocation: pointer) = 
     dealloc(allocation)
 
-proc mark(gc: ptr GarbageCollector) = 
-    for alloc in gc.st.pointerSymbols:
+proc mark(gc: ptr GarbageCollector, st: ref SymbolTable) = 
+    for alloc in st.pointerSymbols:
         var header = cast[ptr AllocationHeader](alloc)
         header.marked = true
+
+    if st.outer != nil:
+        gc.mark(st.outer)
 
 proc sweep(gc: ptr GarbageCollector) = 
     var allocation = cast[ptr AllocationHeader](gc.head)
@@ -88,7 +89,7 @@ proc collect(gc: ptr GarbageCollector): bool =
     echo "Starting to collect the garbage"
     var totalObjects = gc.allocatedObjects
 
-    gc.mark()
+    gc.mark(gc.st)
     gc.sweep()
 
     echo "Collected {totalObjects - gc.allocatedObjects} objects".fmt
