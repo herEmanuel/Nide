@@ -9,16 +9,12 @@ type
 
 proc newSt*(): ref SymbolTable = 
     var st = new(SymbolTable)
-
-    st.symbols = initTable[string, Obj]()
     st.outer = nil
 
     return st
 
 proc newStWithOuter*(outer: ref SymbolTable): ref SymbolTable = 
     var st = new(SymbolTable)
-
-    st.symbols = initTable[string, Obj]()
     st.outer = outer
 
     return st
