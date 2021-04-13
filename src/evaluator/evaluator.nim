@@ -1,4 +1,5 @@
 import ../parser/ast, obj, symbolTable, gc
+import ../utils/gc_utils
 import ../../lib/std/std
 from strformat import fmt
 import strutils, tables, options
@@ -10,9 +11,6 @@ proc isError(obj: Obj) =
     if obj.objType == objError:
         echo obj.error
         system.quit(0)
-
-proc `+`(p1: pointer, val: int): pointer = 
-    return cast[pointer](cast[int](p1) + val)
 
 proc heapAlloc(size: int, st: ref SymbolTable): pointer = 
     var mem = GC.allocate(size, st)
@@ -85,7 +83,7 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         if arr.length <= index.intValue:
             return raiseError("array out of bounds; length is {arr.length}, but tried to index {index.intValue}".fmt)
 
-        return cast[ptr seq[Obj]](arr.elements + sizeof(AllocationHeader))[index.intValue]
+        return arr.elements.arrayContent[index.intValue]
 
     of astReturn:
         var value = eval(node.value, st)
@@ -349,12 +347,12 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
     of astDotExpr:
         var objectName = node.sons[0].identifier
-        var objVal = eval(node.sons[0], st)
-        isError(objVal)
 
         case node.sons[1].nodeType
         of astIdent:
-            
+            var objVal = eval(node.sons[0], st)
+            isError(objVal)
+
             if objVal.objType != objObject:
                 case objVal.objType
                 of objArray:
@@ -376,6 +374,9 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
                 return DefaultObjects[objectName][functionName](args)
             else:
+                var objVal = eval(node.sons[0], st)
+                isError(objVal)
+                
                 if objVal.objType != objObject:
                     if not ObjectMethods[objVal.objType].hasKey(functionName):
                         return raiseError("undeclared method for identifier {objectName}: {functionName}".fmt)

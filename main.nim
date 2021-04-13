@@ -38,6 +38,7 @@ proc execFromFile(filePath: string) =
     var p = newParser(l)
 
     var program = p.parseProgram()
+    echo %program
     discard eval(program, st)
 
     gc_stop()

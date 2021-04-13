@@ -1,5 +1,6 @@
 import tables, strutils
 import ../../src/evaluator/obj
+import ../../src/utils/gc_utils
 from strformat import fmt
 import numbers, arrays
 
@@ -22,6 +23,16 @@ proc std_log*(args: varargs[Obj]): Obj =
             write(stdout, arg.floatValue)
         of objBool:
             write(stdout, arg.boolValue)
+        of objArray:
+            write(stdout, "[")
+            
+            for i, val in arg.elements.arrayContent[]:
+                discard std_log(val)
+                
+                if i != arg.elements.arrayContent[].len - 1:
+                    write(stdout, ", ")
+
+            write(stdout, "]")
         else:
             return raiseError("can not use {arg.objType} as an argument for log".fmt)
 

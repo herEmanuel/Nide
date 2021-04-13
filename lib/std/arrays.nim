@@ -1,11 +1,9 @@
 import ../../src/evaluator/obj, ../../src/evaluator/gc
+import ../../src/utils/gc_utils
 from strformat import fmt
 
 proc raiseError(err: string): Obj = 
     return Obj(objType: objError, error: "Evaluation error: {err}".fmt)
-
-proc `+`(p1: pointer, val: int): pointer = 
-    return cast[pointer](cast[int](p1) + val)
 
 proc arrays_push*(args: varargs[Obj]): Obj = 
     if args.len != 2:
@@ -15,14 +13,9 @@ proc arrays_push*(args: varargs[Obj]): Obj =
     var obj = args[1]
 
     var previousSize = int(cast[ptr AllocationHeader](arr.elements).size)
-    echo previousSize
+    
     var newMem = GC.reallocate(arr.elements, previousSize + sizeof(obj))
-    echo cast[ptr AllocationHeader](newMem).repr
-    echo sizeof(obj)
-    echo previousSize + sizeof(obj)
-    echo newMem == nil
-    var arrArea = cast[ptr seq[Obj]](newMem + sizeof(AllocationHeader))[]
-    arrArea.add(obj)
+    newMem.arrayContent[].add(obj)
 
     arr.elements = newMem
     arr.length += 1

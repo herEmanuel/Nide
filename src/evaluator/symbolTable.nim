@@ -1,5 +1,6 @@
 import tables
 import obj
+# import ../utils/gc_utils
 from strformat import fmt
 
 type
@@ -7,9 +8,6 @@ type
         symbols*: Table[string, Obj]
         pointerSymbols*: seq[pointer]
         outer*: ref SymbolTable
-
-proc `+`(p1: pointer, val: int): pointer = 
-    return cast[pointer](cast[int](p1) + val)
 
 proc newSt*(): ref SymbolTable = 
     var st = new(SymbolTable)

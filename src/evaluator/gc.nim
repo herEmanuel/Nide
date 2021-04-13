@@ -1,14 +1,8 @@
-import symbolTable 
+import symbolTable, ../utils/gc_utils 
 from strformat import fmt 
 
 var
     MAX_ALLOCATION_NUMBER = 15
-
-type 
-    AllocationHeader* = object 
-        marked: bool
-        size*: uint
-        next: pointer
 
 type
     GarbageCollector* = object
