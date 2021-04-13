@@ -1,6 +1,7 @@
-import tables, numbers, strutils
+import tables, strutils
 import ../../src/evaluator/obj
 from strformat import fmt
+import numbers, arrays
 
 #I/O functions for the standard library
 
@@ -82,5 +83,8 @@ var
         objInt, objFloat: {
             "toString": numbers_toString
         }.toTable,
+        objArray: {
+            "push": arrays_push
+        }.toTable
     }.toTable
 

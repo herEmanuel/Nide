@@ -1,7 +1,7 @@
-import ../parser/ast, obj, symbolTable
+import ../parser/ast, obj, symbolTable, gc
 import ../../lib/std/std
 from strformat import fmt
-import strutils, tables
+import strutils, tables, options
 
 proc raiseError(err: string): Obj = 
     return Obj(objType: objError, error: "Evaluation error: {err}".fmt)
@@ -11,13 +11,27 @@ proc isError(obj: Obj) =
         echo obj.error
         system.quit(0)
 
+proc `+`(p1: pointer, val: int): pointer = 
+    return cast[pointer](cast[int](p1) + val)
+
+proc heapAlloc(size: int, st: ref SymbolTable): pointer = 
+    var mem = GC.allocate(size, st)
+    st.pointerSymbols.add(mem)
+    return mem
+
+proc copyTo(objs: seq[Obj], mem: pointer) = 
+    cast[ptr seq[Obj]](mem + sizeof(AllocationHeader))[] = objs
+
+proc copyTo(obj: Obj, mem: pointer) = 
+    cast[ptr Obj](mem + sizeof(AllocationHeader))[] = obj
+
 proc isTrue(obj: Obj): bool
 proc evalImport(node: Node, st: ref SymbolTable): Obj
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalBlock(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalIntInfix(left: Obj, right: Obj, operation: string): Obj
 proc evalFloatInfix(left: Obj, right: Obj, operation: string): Obj
-proc evalFunctionArgs(function: Node, st: ref SymbolTable): seq[Obj]
+proc evalFunctionArgs(function: Node, st: ref SymbolTable, objVal = none(Obj)): seq[Obj]
 proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): Obj
 
 proc eval*(node: Node, st: ref SymbolTable): Obj =
@@ -41,14 +55,19 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         return NULL
     of astArray:
         var elements: seq[Obj]
+        var totalSize = 0
 
         for elem in node.elements:
             var res = eval(elem, st)
             isError(res)
 
+            totalSize += sizeof(res)
             elements.add(res)
 
-        return Obj(objType: objArray, elements: elements, length: elements.len)
+        var arr = heapAlloc(totalSize, st)
+        copyTo(elements, arr)
+
+        return Obj(objType: objArray, elements: arr, length: elements.len)
 
     of astArrayAccess:
         var arr = eval(node.arr, st)
@@ -66,7 +85,7 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         if arr.length <= index.intValue:
             return raiseError("array out of bounds; length is {arr.length}, but tried to index {index.intValue}".fmt)
 
-        return arr.elements[index.intValue]
+        return cast[ptr seq[Obj]](arr.elements + sizeof(AllocationHeader))[index.intValue]
 
     of astReturn:
         var value = eval(node.value, st)
@@ -292,8 +311,9 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         isError(condition)
 
         while isTrue(condition):
+            var loopLocalSt = newStWithOuter(localSt)
 
-            res = evalBlock(node.sons[3].elements, localSt)
+            res = evalBlock(node.sons[3].elements, loopLocalSt)
             if res.objType == objReturn:
                 return res
 
@@ -329,10 +349,19 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
     of astDotExpr:
         var objectName = node.sons[0].identifier
+        var objVal = eval(node.sons[0], st)
+        isError(objVal)
 
         case node.sons[1].nodeType
         of astIdent:
-            discard
+            
+            if objVal.objType != objObject:
+                case objVal.objType
+                of objArray:
+                    return Obj(objType: objInt, intValue: objVal.length)
+                else:
+                    discard
+
         of astFuncCall:
             var functionName = node.sons[1].sons[0].identifier
 
@@ -347,14 +376,13 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
                 return DefaultObjects[objectName][functionName](args)
             else:
-                var objVal = eval(node.sons[0], st)
-                isError(objVal)
-                
                 if objVal.objType != objObject:
                     if not ObjectMethods[objVal.objType].hasKey(functionName):
                         return raiseError("undeclared method for identifier {objectName}: {functionName}".fmt)
                     
-                    var res = ObjectMethods[objVal.objType][functionName](objVal)
+                    var args = evalFunctionArgs(node.sons[1], st, some(objVal))
+
+                    var res = ObjectMethods[objVal.objType][functionName](args)
                     return st.reassignSymbol(node.sons[0].identifier, res)
         else:
             return NULL
@@ -501,8 +529,11 @@ proc evalFloatInfix(left: Obj, right: Obj, operation: string): Obj =
     else: 
         discard
 
-proc evalFunctionArgs(function: Node, st: ref SymbolTable): seq[Obj] = 
+proc evalFunctionArgs(function: Node, st: ref SymbolTable, objVal = none(Obj)): seq[Obj] = 
     var args: seq[Obj]
+
+    if objVal.isSome:
+        args.add(objVal.get)
 
     for arg in function.sons:
         if function.sons[0] == arg:

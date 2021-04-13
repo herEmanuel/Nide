@@ -41,7 +41,7 @@ type
         of objBuiltin:
             name*: string
         of objArray:
-            elements*: seq[Obj]
+            elements*: pointer
             length*: int
         else:
             discard

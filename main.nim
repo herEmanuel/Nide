@@ -4,10 +4,11 @@ from os import getCurrentDir, commandLineParams
 # import src/lexer/tokens
 import src/lexer/lexer
 import src/parser/parser
-import src/evaluator/evaluator, src/evaluator/symbolTable
+import src/evaluator/evaluator, src/evaluator/symbolTable, src/evaluator/gc 
 
 proc repl() = 
     var st = newSt()
+    gc_init()
 
     echo "Type \"quit\" to leave the repl"
 
@@ -16,6 +17,7 @@ proc repl() =
         var input = readLine(stdin)
 
         if input == "quit":
+            gc_stop()
             system.quit(0)
 
         var l = newLexer(input, nil)
@@ -23,13 +25,14 @@ proc repl() =
         var program = p.parseProgram()
         echo %program
 
-        echo %eval(program, st)
+        echo eval(program, st).repr
 
 proc execFromFile(filePath: string) =
     let f = open(os.getCurrentDir() & "./{filePath}".fmt)
     var input = f.readLine()
 
     var st = newSt()
+    gc_init()
 
     var l = newLexer(input, f)
     var p = newParser(l)
@@ -37,6 +40,7 @@ proc execFromFile(filePath: string) =
     var program = p.parseProgram()
     discard eval(program, st)
 
+    gc_stop()
     f.close()
 
 var args = os.commandLineParams()
