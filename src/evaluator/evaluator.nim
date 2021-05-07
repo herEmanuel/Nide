@@ -3,13 +3,14 @@ import ../utils/gc_utils
 import ../../lib/std/std
 from strformat import fmt
 import strutils, tables, options
+import strutils, tables, terminal
 
 proc raiseError(err: string): Obj = 
-    return Obj(objType: objError, error: "Evaluation error: {err}".fmt)
+    return Obj(objType: objError, error: err)
 
 proc isError(obj: Obj) = 
     if obj.objType == objError:
-        echo obj.error
+        styledEcho fgRed, "Evaluation error: ", fgWhite, obj.error
         system.quit(0)
 
 proc heapAlloc(size: int, st: ref SymbolTable): pointer = 
@@ -84,6 +85,18 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
             return raiseError("array out of bounds; length is {arr.length}, but tried to index {index.intValue}".fmt)
 
         return arr.elements.arrayContent[index.intValue]
+
+    of astObject:
+        var props: Table[string, Obj]
+
+        for i, prop in node.sons:
+            if prop.nodeType == astIdent:
+                var val = eval(node.sons[i+1], st)
+                isError(val)
+
+                props[prop.identifier] = val
+
+        return Obj(objType: objObject, properties: props)
 
     of astReturn:
         var value = eval(node.value, st)
@@ -359,6 +372,13 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
                     return Obj(objType: objInt, intValue: objVal.length)
                 else:
                     discard
+            else:
+                var propName = node.sons[1].identifier
+           
+                if objVal.objType != objObject:
+                    return raiseError("{objectName} is not an object".fmt)
+
+                return objVal.properties[propName]
 
         of astFuncCall:
             var functionName = node.sons[1].sons[0].identifier
@@ -385,6 +405,14 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
 
                     var res = ObjectMethods[objVal.objType][functionName](args)
                     return st.reassignSymbol(node.sons[0].identifier, res)
+                else:
+                    var currentSt = newStWithOuter(st)
+                    discard currentSt.setSymbol(functionName, objVal.properties[functionName])
+
+                    var val = eval(node.sons[1], currentSt)
+                    isError(val)
+
+                    return val
         else:
             return NULL
 
@@ -549,6 +577,9 @@ proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): 
     if function.objType == objBuiltin:
         return Builtin[function.name](args)
     
+    if args.len != function.funcParams.len:
+        return raiseError("invalid number of arguments passed to {function.funcName.identifier}, expected {function.funcParams.len}, got {args.len} instead".fmt)
+
     var st = newStWithOuter(outerSt)
 
     for i, arg in function.funcParams:

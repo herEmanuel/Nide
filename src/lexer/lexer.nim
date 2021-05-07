@@ -69,6 +69,8 @@ proc nextToken*(l: var Lexer): Token =
         tok = Token(tokenType: DOT, value: $l.currentChar)
     of ',':
         tok = Token(tokenType: COMMA, value: $l.currentChar)
+    of ':':
+        tok = Token(tokenType: COLON, value: $l.currentChar)
     of ';':
         tok = Token(tokenType: SEMICOLON, value: $l.currentChar)
     of '(':
@@ -185,7 +187,7 @@ proc nextToken*(l: var Lexer): Token =
 proc readIdentifier(l: var Lexer): string =
     var value = ""
 
-    while isAlphaAscii(l.currentChar):
+    while isAlphaNumeric(l.currentChar):
         value.add(l.currentChar)
         l.nextChar()
 
@@ -197,6 +199,9 @@ proc readString(l: var Lexer): string =
     l.nextChar()
 
     while l.currentChar != '"':
+
+        if l.currentChar == '\0':
+            l.addError("expected \", got EOF instead")
 
         if l.currentChar == '\\':
             

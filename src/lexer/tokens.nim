@@ -13,10 +13,10 @@ const
     STRING* = "STRING"
     INT* = "INT"
     FLOAT* = "FLOAT"
-
     DOT* = "."
     COMMA* = ","
     SEMICOLON* = ";"
+    COLON* = ":"
     LPAREN* = "("
     RPAREN* = ")"
     LBRACE* = "{"
