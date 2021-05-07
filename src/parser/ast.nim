@@ -27,7 +27,8 @@ type
         astImport,
         astExport,
         astAs,
-        astDotExpr
+        astDotExpr,
+        astObject
 
     Node* = ref object 
         case nodeType*: NodeType

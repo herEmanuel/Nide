@@ -437,6 +437,7 @@ proc parseFunctionCall(p: var Parser, left: Node): Node =
 
     if p.peekToken.tokenType == RPAREN:
         p.advance()
+        p.advanceOnSemicolon()
         return node
 
     p.advance()
@@ -524,7 +525,7 @@ proc parseDotExpression(p: var Parser, left: Node): Node =
     p.advance()
     p.advance()
 
-    var value = p.parseExpression(ord(LOWEST))
+    var value = p.parseExpression(ord(DOTEXPR))
     if value.nodeType != astIdent and value.nodeType != astFuncCall:
          p.addError("expected an identifier or a function call, got {value.nodeType} instead".fmt)
 
@@ -590,6 +591,38 @@ proc parseArrayAccess(p: var Parser, left: Node): Node =
 
     return node
 
+proc parseObjectProperty(p: var Parser, node: var Node) = 
+    if p.currentToken.tokenType != IDENTIFIER:
+        p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
+
+    node.add(Node(nodeType: astIdent, identifier: p.currentToken.value))
+
+    p.expectToken(COLON)
+    p.advance()
+
+    node.add(p.parseExpression(ord(LOWEST)))
+
+    p.advance()       
+
+proc parseObjectDeclaration(p: var  Parser): Node = 
+    var node = Node(nodeType: astObject)
+
+    p.advance()
+
+    if p.currentToken.tokenType == RBRACE:
+        return node
+
+    p.parseObjectProperty(node)
+
+    while p.currentToken.tokenType == COMMA:
+        p.advance()
+        p.parseObjectProperty(node)
+    
+    if p.currentToken.tokenType != RBRACE:
+        p.addError("expected }}, got {p.currentToken.value} instead".fmt)
+
+    return node
+
 proc parsePostfixIfExists(p: var Parser, token: string, left: Node): Node = 
     case token
     of INC, DEC:
@@ -613,6 +646,8 @@ proc parsePrefixNode(p: var Parser): Node =
         return p.parseGroupedExpression()
     of LSQBRACK:
         return p.parseArrayDeclaration()
+    of LBRACE:
+        return p.parseObjectDeclaration()
     of INT:
         return p.parseInteger()
     of FLOAT:

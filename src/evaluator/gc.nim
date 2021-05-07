@@ -1,6 +1,7 @@
 import symbolTable
 from strformat import fmt
 
+#TODO: fix this later
 const
     FREE_LIST_ALLOCATION_AMOUNT = 10
 

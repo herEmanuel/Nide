@@ -23,7 +23,7 @@ proc repl() =
         var program = p.parseProgram()
         echo %program
 
-        echo %eval(program, st)
+        discard eval(program, st)
 
 proc execFromFile(filePath: string) =
     let f = open(os.getCurrentDir() & "./{filePath}".fmt)

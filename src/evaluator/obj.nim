@@ -1,4 +1,4 @@
-import ../parser/ast
+import ../parser/ast, tables
 
 type
     ObjType* = enum
@@ -43,6 +43,8 @@ type
         of objArray:
             elements*: seq[Obj]
             length*: int
+        of objObject:
+            properties*: Table[string, Obj]
         else:
             discard
 
