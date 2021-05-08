@@ -1,5 +1,6 @@
 *.txt
 /bin
+/build
 *.exe
 *_test.nim
 *.js

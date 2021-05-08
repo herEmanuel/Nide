@@ -1,9 +1,9 @@
-import ../parser/ast, obj, symbolTable, gc
+import ../parser/ast, obj, symbolTable, gc, nativeInterface
 import ../utils/gc_utils
 import ../../lib/std/std
 from strformat import fmt
-import strutils, tables, options
-import strutils, tables, terminal
+import strutils, tables, terminal, options
+from os import getAppDir, joinPath
 
 proc raiseError(err: string): Obj = 
     return Obj(objType: objError, error: err)
@@ -207,7 +207,7 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         var res = st.getSymbol(node.identifier)
         if res == nil:
             if Builtin.hasKey(node.identifier):
-                return Obj(objType: objBuiltin, name: node.identifier)
+                return Obj(objType: objBuiltin, builtin: Builtin[node.identifier])
 
             return raiseError("undeclared identifier: {node.identifier}".fmt)
 
@@ -426,7 +426,34 @@ proc isTrue(obj: Obj): bool =
     return false
 
 proc evalImport(node: Node, st: ref SymbolTable): Obj = 
-    discard
+    var file: File 
+    var bin = os.getAppDir()
+    var native = false
+
+    try:
+        try:
+            file = open(joinPath(bin, "../build/{node.module}/{node.module}.js".fmt))
+        except:
+            file = open(joinPath(bin, "../build/{node.module}/{node.module}.dll".fmt))
+            native = true
+        defer: file.close()
+
+    except IOError:
+        return raiseError("could not find the module {node.module}".fmt)
+
+    if native:
+        var functions = getLibFunctions(joinPath(bin, "../build/{node.module}/{node.module}.dll".fmt))
+        
+        #TODO: change the approach of grouping all the library functions
+        var libObj = Obj(objType: objObject)
+
+        for key, val in functions:
+            libObj.properties[key] = Obj(objType: objBuiltin, builtin: val)
+
+        discard st.setSymbol(node.defaultImport.original, libObj)
+        return libObj
+
+    return Obj()
 
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj =
     var res: Obj
@@ -575,7 +602,7 @@ proc evalFunctionArgs(function: Node, st: ref SymbolTable, objVal = none(Obj)): 
 proc evalFunctionBody(function: Obj, args: seq[Obj], outerSt: ref SymbolTable): Obj = 
     
     if function.objType == objBuiltin:
-        return Builtin[function.name](args)
+        return function.builtin(args)
     
     if args.len != function.funcParams.len:
         return raiseError("invalid number of arguments passed to {function.funcName.identifier}, expected {function.funcParams.len}, got {args.len} instead".fmt)

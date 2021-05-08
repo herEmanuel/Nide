@@ -39,7 +39,7 @@ type
         of objReturn:
             returnValue*: Obj
         of objBuiltin:
-            name*: string
+            builtin*: proc(args: varargs[Obj]): Obj {.cdecl.}
         of objArray:
             elements*: pointer
             length*: int

@@ -38,7 +38,7 @@ proc std_log*(args: varargs[Obj]): Obj =
 
     return NULL
 
-proc std_prompt*(args: varargs[Obj]): Obj = 
+proc std_prompt*(args: varargs[Obj]): Obj {.cdecl.} = 
     if args.len > 1:
         return raiseError("prompt can not use more than one argument")
 
@@ -51,7 +51,7 @@ proc std_prompt*(args: varargs[Obj]): Obj =
     except:
         return raiseError("could not read from the console")
 
-proc std_parseInt*(args: varargs[Obj]): Obj = 
+proc std_parseInt*(args: varargs[Obj]): Obj {.cdecl.} = 
     if args.len != 1:
         return raiseError("expected one argument for parseInt, got {args.len} instead".fmt)
         
@@ -64,7 +64,7 @@ proc std_parseInt*(args: varargs[Obj]): Obj =
 
     return res
 
-proc std_parseFloat*(args: varargs[Obj]): Obj = 
+proc std_parseFloat*(args: varargs[Obj]): Obj {.cdecl.} = 
     if args.len != 1:
         return raiseError("expected one argument for parseFloat, got {args.len} instead".fmt)
     
