@@ -6,6 +6,8 @@ from strformat import fmt
 type
     SymbolTable* = object 
         symbols*: Table[string, Obj]
+        defaultExportedSymbol*: string
+        exportedSymbols*: seq[string]
         pointerSymbols*: seq[pointer]
         outer*: ref SymbolTable
 

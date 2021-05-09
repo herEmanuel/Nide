@@ -56,7 +56,7 @@ type
             modified*: string
         of astImport:
             module*: string 
-            defaultImport*: Node
+            defaultImport*: string
             imports*: seq[string]
             everything*: bool
         of astExport:

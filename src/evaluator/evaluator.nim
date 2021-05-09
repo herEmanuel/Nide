@@ -1,4 +1,5 @@
-import ../parser/ast, obj, symbolTable, gc, nativeInterface
+import ../parser/ast, ../parser/parser, obj, symbolTable, gc, nativeInterface
+import ../lexer/lexer
 import ../utils/gc_utils
 import ../../lib/std/std
 from strformat import fmt
@@ -26,6 +27,7 @@ proc copyTo(obj: Obj, mem: pointer) =
 
 proc isTrue(obj: Obj): bool
 proc evalImport(node: Node, st: ref SymbolTable): Obj
+proc evalExport(node: Node, st: ref SymbolTable): Obj
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalBlock(nodes: seq[Node], st: ref SymbolTable): Obj
 proc evalIntInfix(left: Obj, right: Obj, operation: string): Obj
@@ -39,6 +41,8 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
         return evalProgram(node.elements, st)
     of astImport:
         return evalImport(node, st)
+    of astExport:
+        return evalExport(node, st)
     of astInt:
         return Obj(objType: objInt, intValue: parseInt(node.intValue))
     of astFloat:
@@ -374,10 +378,7 @@ proc eval*(node: Node, st: ref SymbolTable): Obj =
                     discard
             else:
                 var propName = node.sons[1].identifier
-           
-                if objVal.objType != objObject:
-                    return raiseError("{objectName} is not an object".fmt)
-
+                
                 return objVal.properties[propName]
 
         of astFuncCall:
@@ -425,19 +426,40 @@ proc isTrue(obj: Obj): bool =
 
     return false
 
+proc importFile(filePath: string): ref SymbolTable = 
+    var file: File
+    
+    try:
+        file = open(filePath)
+    except IOError:
+        discard raiseError("could not open the file")
+ 
+    var input = file.readLine()
+    var st = newSt()
+
+    var l = newLexer(input, file)
+    var p = newParser(l)
+
+    var program = p.parseProgram()
+    discard eval(program, st)
+
+    file.close()
+    return st
+    
+#TODO: make the code cleaner
 proc evalImport(node: Node, st: ref SymbolTable): Obj = 
-    var file: File 
     var bin = os.getAppDir()
     var native = false
 
     try:
+        var file: File 
         try:
             file = open(joinPath(bin, "../build/{node.module}/{node.module}.js".fmt))
         except:
             file = open(joinPath(bin, "../build/{node.module}/{node.module}.dll".fmt))
             native = true
-        defer: file.close()
 
+        defer: file.close()
     except IOError:
         return raiseError("could not find the module {node.module}".fmt)
 
@@ -450,10 +472,69 @@ proc evalImport(node: Node, st: ref SymbolTable): Obj =
         for key, val in functions:
             libObj.properties[key] = Obj(objType: objBuiltin, builtin: val)
 
-        discard st.setSymbol(node.defaultImport.original, libObj)
-        return libObj
+        discard st.setSymbol(node.defaultImport, libObj)
 
-    return Obj()
+    #non native code imported -->
+    var importedFileSt = importFile(joinPath(bin, "../build/{node.module}/{node.module}.js".fmt))
+
+    if node.defaultImport != "":
+        if importedFileSt.defaultExportedSymbol == "":
+            return raiseError("file {node.module} has no default export".fmt)
+
+        var defaultExport = importedFileSt.getSymbol(importedFileSt.defaultExportedSymbol)
+        if defaultExport == nil:
+            return raiseError("the symbol exported by default from module {node.module} could not be found".fmt)
+
+        discard st.setSymbol(node.defaultImport, defaultExport)
+
+    if node.imports.len != 0 and not node.everything:
+        for imp in node.imports:
+            if imp in importedFileSt.exportedSymbols:
+                var symbolExported = importedFileSt.getSymbol(imp)
+                if symbolExported == nil:
+                    return raiseError("the symbol exported by default from module {node.module} could not be found".fmt)
+                
+                discard st.setSymbol(imp, symbolExported)
+            else:
+                return raiseError("file {node.module} has no export named {imp}".fmt)
+
+    if node.everything:
+        var libObj = Obj(objType: objObject)
+
+        for exp in importedFileSt.exportedSymbols:
+            var symbolExported = importedFileSt.getSymbol(exp)
+            if symbolExported == nil:
+                return raiseError("the symbol exported by default from module {node.module} could not be found".fmt)
+
+            libObj.properties[exp] = symbolExported
+        
+        if importedFileSt.defaultExportedSymbol != "":
+            var defaultExport = importedFileSt.getSymbol(importedFileSt.defaultExportedSymbol)
+            if defaultExport == nil:
+                return raiseError("the symbol exported by default from module {node.module} could not be found".fmt)
+
+            libObj.properties[importedFileSt.defaultExportedSymbol] = defaultExport
+
+        discard st.setSymbol(node.imports[0], libObj)
+
+    return NULL
+
+proc evalExport(node: Node, st: ref SymbolTable): Obj = 
+    if node.defaultExport != nil:
+        if st.defaultExportedSymbol != "":
+            return raiseError("can not have more than one default exported symbol per file")
+
+        var val = eval(node.defaultExport, st)
+        isError(val)
+
+        st.defaultExportedSymbol = node.defaultExport.sons[0].identifier
+        return val
+    
+    var val = eval(node.exportNode, st)
+    isError(val)
+
+    st.exportedSymbols.add(node.exportNode.sons[0].identifier)
+    return val
 
 proc evalProgram(nodes: seq[Node], st: ref SymbolTable): Obj =
     var res: Obj

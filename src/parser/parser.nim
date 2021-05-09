@@ -180,19 +180,8 @@ proc parseImport(p: var Parser): Node =
             p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
 
         p.advance()
-        var defaultName = p.currentToken.value
 
-        if p.peekToken.tokenType == AS:
-            p.advance()
-            p.advance()
-
-            if p.currentToken.tokenType != IDENTIFIER:
-                p.addError("expected an identifier, got {p.currentToken.tokenType} instead".fmt)
-        
-            node.defaultImport = Node(nodeType: astAs, original: defaultName, modified: p.currentToken.value)
-
-        else:
-            node.defaultImport = Node(nodeType: astAs, original: defaultName)
+        node.defaultImport = p.currentToken.value
 
     p.advance()
 
@@ -230,8 +219,11 @@ proc parseExport(p: var Parser): Node =
     else:
         res = p.parseExpression(ord(LOWEST))
 
+        if res.nodeType != astFunction:
+            p.addError("can not export a {res.nodeType}".fmt)
+
     if default:
-        node.defaultImport = res
+        node.defaultExport = res
     else:
         node.exportNode = res
 

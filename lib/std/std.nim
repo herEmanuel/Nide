@@ -15,6 +15,9 @@ proc std_log*(args: varargs[Obj]): Obj =
 
     for arg in args:
         case arg.objType:
+        of objConst:
+            discard std_log(arg.constValue)
+            break
         of objString:
             write(stdout, arg.strValue)
         of objInt:

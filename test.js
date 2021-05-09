@@ -1,4 +1,7 @@
-import test from "test";
+import * as test from "test2";
 
-console.log(test.add(55, 9))
-console.log("\n")
+test.sayHello()
+
+console.log(test.PI)
+
+
